@@ -466,9 +466,9 @@ td.num,th.num{text-align:right;font-family:var(--f-mono);font-size:13.5px;white-
           <li><span class="what">Becomes a row inside a row group</span><span class="how">parquet, compressed, column-addressable</span></li>
           <li><span class="what">Registered as a data file in a snapshot</span><span class="how">iceberg manifest entry</span></li>
           <li><span class="what">Read, cleaned, enriched by Spark</span><span class="how">bronze to silver, new parquet files</span></li>
-          <li><span class="what">Committed as a new snapshot</span><span class="how">old snapshot still queryable</span></li>
+          <li><span class="what">Committed as a new snapshot</span><span class="how">older snapshot queryable while retained and supported</span></li>
           <li><span class="what">Queried interactively by Trino</span><span class="how">partition pruning + predicate pushdown</span></li>
-          <li><span class="what">Aggregated away by dbt</span><span class="how">it stops being a row and becomes a count</span></li>
+          <li><span class="what">Aggregated away by dbt</span><span class="how">proposed Stage 2 dbt-trino; Stage 1 selected writer</span></li>
           <li><span class="what">Served from a gold mart</span><span class="how">gold.zone_hour_demand</span></li>
           <li><span class="what">Rendered on the portal</span><span class="how">versioned exported json first</span></li>
         </ol>
@@ -478,10 +478,10 @@ td.num,th.num{text-align:right;font-family:var(--f-mono);font-size:13.5px;white-
         <ol class="journey rt">
           <li><span class="what">Read back from historical parquet</span><span class="how">replay producer, rate-controlled</span></li>
           <li><span class="what">Published with a partition key</span><span class="how">proposed key = (city, pickup_zone), topic mobility.yellow</span></li>
-          <li><span class="what">Given a partition and an offset</span><span class="how">partition 3, offset 918273</span></li>
+          <li><span class="what">Given a partition and an offset</span><span class="how">illustrative partition/offset; configuration pending</span></li>
           <li><span class="what">Consumed by Flink with event time</span><span class="how">watermark derived from pickup_timestamp</span></li>
-          <li><span class="what">Placed in a five-minute window</span><span class="how">keyed state per zone</span></li>
-          <li><span class="what">Deduplicated, late arrivals handled</span><span class="how">side output for anything past the watermark</span></li>
+          <li><span class="what">Placed in a five-minute window</span><span class="how">state keyed by city, zone and replay scope</span></li>
+          <li><span class="what">Deduplicated, late arrivals handled</span><span class="how">allowed-lateness and too-late routing policy</span></li>
           <li><span class="what">Checkpointed</span><span class="how">recovery point, not a result</span></li>
           <li><span class="what">Emitted as a real-time aggregate</span><span class="how">trips per zone per five minutes</span></li>
           <li><span class="what">Written to an Iceberg sink</span><span class="how">separate table from the batch path</span></li>
@@ -495,25 +495,25 @@ td.num,th.num{text-align:right;font-family:var(--f-mono);font-size:13.5px;white-
   <div class="wrap">
     <div class="sec-head">
       <h2>The data model</h2>
-      <p>Three layers, each with a job. Bronze keeps the source honest, silver makes it usable, gold answers questions.</p>
+      <p>Proposed canonical tables match the data contracts. Bronze retains source fidelity, Silver validates and normalizes, Gold defines business grains. Census and additional marts remain optional.</p>
     </div>
     <div class="cols c3">
       <div class="block">
         <h4>Bronze — source shape</h4>
         <ul>
-          <li><b>taxi_trips_raw</b> — no cleaning, only landed</li>
-          <li><b>weather_raw</b></li>
-          <li><b>census_raw</b></li>
+          <li><b>raw_yellow_trips</b> — source shape and release provenance</li>
+          <li><b>raw_weather</b></li>
+          <li><b>raw_events</b>, <b>raw_traffic</b> — later sources</li>
         </ul>
-        <p style="font-size:13.5px;color:var(--slate);margin:10px 0 0">Rule: bronze is never edited. Anything wrong with it stays wrong, and is fixed downstream where the fix is visible.</p>
+        <p style="font-size:13.5px;color:var(--slate);margin:10px 0 0">Preserve source-release bytes and provenance. Corrections create a new release; validation and normalization occur downstream. Retention remains explicit.</p>
       </div>
       <div class="block">
         <h4>Silver — cleaned and joined</h4>
         <ul>
-          <li><b>taxi_trips_clean</b> — impossible records removed, types normalised, deduplicated</li>
-          <li><b>taxi_trips_enriched</b> — weather and zone attached</li>
-          <li><b>weather_hourly</b></li>
-          <li><b>zone_dimension</b></li>
+          <li><b>clean_trips</b> — validated rows; rejected rows retain quarantine evidence</li>
+          <li><b>normalized_events</b>, <b>normalized_traffic</b></li>
+          <li><b>normalized_weather</b></li>
+          <li><b>geographic_reference</b></li>
         </ul>
         <p style="font-size:13.5px;color:var(--slate);margin:10px 0 0">Derived here: trip_duration_seconds, average_speed, valid-zone flag.</p>
       </div>
@@ -521,10 +521,10 @@ td.num,th.num{text-align:right;font-family:var(--f-mono);font-size:13.5px;white-
         <h4>Gold — business answers</h4>
         <ul>
           <li><b>zone_hour_demand</b></li>
-          <li><b>zone_daily_metrics</b></li>
-          <li><b>trip_performance</b></li>
-          <li><b>revenue_metrics</b></li>
-          <li><b>demand_features</b></li>
+          <li><b>zone_hour_features</b></li>
+          <li><b>forecasting_features</b></li>
+          <li><b>mobility_anomalies</b></li>
+          <li><b>model_predictions</b></li>
         </ul>
         <p style="font-size:13.5px;color:var(--slate);margin:10px 0 0">The initial portal reads validated Gold exports with version and freshness metadata. Later APIs can expose current state and model outputs.</p>
       </div>
@@ -568,7 +568,7 @@ td.num,th.num{text-align:right;font-family:var(--f-mono);font-size:13.5px;white-
 </section>
 
 <section id="running"><div class="wrap"><div class="sec-head"><h2>Local profile, expandable system</h2><p>The local host has 16 GB RAM and a 512 GB SSD. Resource policies belong in deployment configuration, not business logic. Services run selectively; larger deployments can retain more history and scale workers through the same contracts.</p></div><div class="cols c2"><div class="block"><h4>Local admission budget</h4><ul><li>About 10 GB routine working data; 20 GB peak maximum</li><li>Count raw and curated copies, snapshots, Kafka logs, checkpoints, exports, telemetry and rewrite scratch</li><li>Track container images separately; aim for 100+ GB free SSD</li><li>Provisional 8–10 GB stack RAM; measure actual service use</li><li>Keep selected historical periods plus a recent window; pause new work if protected history and a refresh cannot fit</li></ul></div><div class="block"><h4>Configurable modules</h4><ul><li>Source discovery and adapters independent of transforms</li><li>Shared object storage and compatible Iceberg catalog</li><li>Finite batch/modelling jobs; separate Kafka/Flink runtime</li><li>Optional product, ML and observability profiles</li><li>Versioned API/export contracts; configurable endpoints, retention, concurrency and partitions</li></ul></div></div><p class="footnote">Start with 100–500 MB inputs; expand only after measuring storage amplification and peak scratch. Input size is not total working-set size. <a href="../architecture/local.md">Local design</a> · <a href="../architecture/platform.md#modularity-and-expansion">Expansion boundaries</a></p></div></section>
-<section id="lifecycle"><div class="wrap"><div class="sec-head"><h2>Historical and latest, together</h2><p>Frozen historical runs and ongoing latest-source refresh share adapters, manifests, validation and publication rules. Latest means the newest validated published release, not a live NYC feed.</p></div><ol class="journey"><li><span class="what">Discover and identify source releases</span><span class="how">period, version/checksum, publication time if known, observed time</span></li><li><span class="what">Admit a bounded run</span><span class="how">separate refresh/backfill queues, peak disk and memory checks</span></li><li><span class="what">Validate and reconcile</span><span class="how">unchanged release is a no-op; corrected periods replace or merge under explicit rules</span></li><li><span class="what">Publish a consistent release</span><span class="how">manifest pins related table snapshots; failed refresh retains prior valid release</span></li><li><span class="what">Retain history deliberately</span><span class="how">protect experiment snapshots; scale storage/retention beyond local profile when needed</span></li></ol><p><a href="../architecture/data-lifecycle.md">Read correction, overlap, freshness and retention rules</a></p></div></section>
+<section id="lifecycle"><div class="wrap"><div class="sec-head"><h2>Historical and latest, together</h2><p>Frozen historical runs and ongoing latest-source refresh share adapters, manifests, validation and publication rules. Latest means the newest validated published release, not a live NYC feed.</p></div><ol class="journey"><li><span class="what">Discover and identify source releases</span><span class="how">period, version/checksum, publication time if known, observed time</span></li><li><span class="what">Admit a bounded run</span><span class="how">separate refresh/backfill queues, peak disk and memory checks</span></li><li><span class="what">Validate and reconcile</span><span class="how">unchanged release is a no-op; corrected periods replace or merge under explicit rules</span></li><li><span class="what">Publish a consistent release</span><span class="how">manifest pins table snapshots; conditional publication prevents stale jobs replacing newer releases</span></li><li><span class="what">Retain history deliberately</span><span class="how">protect experiment snapshots; scale storage/retention beyond local profile when needed</span></li></ol><p><a href="../architecture/data-lifecycle.md">Read correction, overlap, freshness and retention rules</a></p></div></section>
 <section id="roadmap"><div class="wrap"><div class="sec-head"><h2>Delivery sequence</h2><p>The original eight stages remain the canonical roadmap. The near-term engineering slice adds modelling, maintenance and a small export-backed portal. Every stage remains planned.</p></div><div class="cols c3"><div class="phase"><span class="when">Stage 1</span><h4>Data foundation</h4><p>Catalog/writer compatibility, historical slice, latest-release contract, Bronze/Silver/Gold and one reconciled query.</p></div><div class="phase"><span class="when">Stage 2</span><h4>Distributed processing</h4><p>Spark transforms, proposed dbt-trino Gold models, DuckDB comparisons, Airflow refresh/backfill and maintenance.</p></div><div class="phase"><span class="when">Stage 3</span><h4>Streaming</h4><p>Versioned contracts and registry, Kafka replay, Flink windows, separate rt tables, recovery reconciliation; Redis with live serving.</p></div><div class="phase"><span class="when">Stage 4</span><h4>Multi-source / multi-city</h4><p>Weather, events, traffic and later Chicago. Census remains optional; geography and availability are explicit.</p></div><div class="phase"><span class="when">Stage 5</span><h4>ML</h4><p>Temporal baselines, forecasts and anomaly evaluation, MLflow, versioned inference and rollback.</p></div><div class="phase"><span class="when">Stage 6</span><h4>Agent</h4><p>Authorized tools, bounded read-only SQL and evidence-grounded responses, with security evaluations.</p></div><div class="phase"><span class="when">Stage 7</span><h4>Production hardening</h4><p>Broader operational, security, load and failure evidence. Basic correctness and telemetry start in Stage 1.</p></div><div class="phase"><span class="when">Stage 8</span><h4>Public platform</h4><p>Integrate completed capabilities and measured reports. Architecture/engineering/data pages may ship earlier.</p></div></div><p class="footnote"><a href="../roadmap.md">Exit evidence and first implementation commits</a>. Optional cloud validation tests portability; it does not prove production capacity.</p></div></section>
 <section id="portal">
   <div class="wrap">

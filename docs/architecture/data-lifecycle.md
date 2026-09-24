@@ -18,11 +18,12 @@ Do not hard-code one month or year into transformations. Configure city/source, 
 4. Validate schema and normalize to Bronze/Silver with accepted, quarantined and duplicate counts. New or incompatible schemas fail publication or take an explicit migration path.
 5. Recompute affected Gold periods and dependent context joins. Reconcile totals before exposing them.
 6. Commit table snapshots and publish a release manifest referencing the exact snapshots used. Multiple table commits are not assumed to be one transaction; readers needing a consistent multi-table view use that manifest.
-7. Mark the run published only after its consumer-visible release succeeds. A failed refresh leaves the previous valid release available with unchanged freshness labels and an observable failure status.
+7. Advance the consumer-visible release pointer through serialized publication or a compare-and-swap against its expected predecessor. Completion time is not release precedence: a slow older backfill must not replace a newer source revision or remove already published periods. Rebase/revalidate a stale candidate against the current release, preserving unaffected source-period mappings. Explicit rollback is a separate audited operation.
+8. Mark the run published only after its consumer-visible release succeeds. A failed refresh leaves the previous valid release available with unchanged freshness labels and an observable failure status.
 
 ## Overlap, corrections and backfills
 
-A source correction creates a new source release, not a second additive copy of trips. Choose stable identity, replacement/merge rules and affected-period scope with the first contract. When stable source row IDs are absent, a content fingerprint alone may not distinguish a corrected row from a new trip: replacing the validated source period may be safer. Record the selected rule and test it.
+A source correction creates a new source release, not a second additive copy of trips. Track release precedence per source and period; if the source provides no ordered revision identifier, define how discovery of changed bytes is confirmed and record the supersession explicitly. A checksum identifies content but does not order revisions. Choose stable identity, replacement/merge rules and affected-period scope with the first contract. When stable source row IDs are absent, a content fingerprint alone may not distinguish a corrected row from a new trip: replacing the validated source period may be safer. Record the selected rule and test it.
 
 Serialize or otherwise coordinate competing writes to the same source/period/table. A retry or overlapping historical/latest run must not double count. Retain superseded release provenance and any pinned experiment snapshot according to policy. Recompute dependent Gold/export products and identify which published release supersedes which. If pinned history prevents a local refresh from fitting, report the conflict and pause or move the workload; never silently break reproducibility.
 
@@ -36,4 +37,4 @@ An expanded deployment can retain all selected history in durable object storage
 
 ## Acceptance cases
 
-Verify: repeat the same release; discover a new period; ingest a corrected period; overlap a refresh with a backfill; fail halfway through multi-table publication; encounter an incompatible schema; miss a source release; and run out of disk headroom. Each case must produce an explainable current release, accurate coverage/freshness and reconciled counts. Freeze one historical experiment, run a latest refresh, and demonstrate that the frozen result remains reproducible while the current view advances.
+Verify: repeat the same release; discover a new period; ingest a corrected period; overlap a refresh with a backfill that finishes last; fail halfway through multi-table publication; encounter an incompatible schema; miss a source release; and run out of disk headroom. Each case must produce an explainable current release, accurate coverage/freshness and reconciled counts. Freeze one historical experiment, run a latest refresh, and demonstrate that the frozen result remains reproducible while the current view advances.

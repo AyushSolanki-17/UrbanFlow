@@ -6,7 +6,7 @@
 
 | Stage | Deliverable | Exit evidence |
 | --- | --- | --- |
-| 1. Data foundation | NYC Yellow Taxi historical slice plus latest-release discovery design, explicit contract, raw landing, Iceberg Bronze/Silver/Gold, quality checks, Trino, minimal query/dashboard demo and local configuration | Fresh checkout can reproduce data loading and a known aggregate; accepted/rejected/duplicate totals reconcile; source and snapshot identities recorded |
+| 1. Data foundation | NYC Yellow Taxi historical slice plus latest-release discovery and refresh, explicit contract, raw landing, Iceberg Bronze/Silver/Gold, quality checks, Trino, minimal query/dashboard demo and local configuration | Fresh checkout can reproduce data loading and a known aggregate; accepted/rejected/duplicate totals reconcile; source and snapshot identities recorded; unchanged/new/corrected releases and failed-refresh behavior verified |
 | 2. Distributed processing | Spark Bronze-to-Silver transformations, proposed dbt-trino Gold models/tests, DuckDB comparison, Airflow scheduling/backfills | Repeatable correctness checks and runtime/shuffle/partitioning benchmarks on declared hardware and data |
 | 3. Streaming | Historical replay, Kafka, registry, Flink event-time windows, checkpoints, anomaly candidates; Redis when current serving starts | Duplicate, late-event, recovery, and slow-sink experiments with reconciled durable outputs and measured telemetry |
 | 4. Multi-source / multi-city | Weather, events, traffic, additional services, Chicago adapters | Versioned contracts, explicit missing-context handling, valid temporal/spatial joins, and cross-city comparison |

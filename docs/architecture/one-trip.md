@@ -21,7 +21,7 @@ In Gold the individual record contributes to a count rather than remaining a dis
 
 1. Read the historical file in a reproducible order and retain original event time. Emit a versioned envelope with `event_id`, `city`, source and replay-run identity.
 2. Publish to `mobility.yellow` with the selected partition key. Record acknowledgement and restart position; a producer restart may resend records.
-3. Flink validates, deduplicates within the documented horizon, assigns event-time windows, and routes too-late/invalid events according to the contract.
+3. Declare whether replay models pickup events or completed-trip publication. Gate fields by that simulated availability; future trip outcomes cannot become pickup-time features. Flink validates, deduplicates within the documented horizon, assigns event-time windows, and routes too-late/invalid events according to the contract.
 4. Commit aggregates to `rt.zone_5min` and candidates to `rt.anomalies`. Retain checkpoint, input offsets, table snapshot and revision evidence.
 5. Once implemented, update Redis with versioned current state for FastAPI. Iceberg and Redis are separate sink effects; recovery must rebuild/reconcile cache state.
 6. Compare a batch recomputation on the same accepted inputs, event-time bounds, and replay scope. Do not add streaming counts to historical counts for the same window.

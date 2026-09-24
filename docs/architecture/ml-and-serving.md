@@ -8,6 +8,10 @@
 
 Forecast zone demand at +15, +30, and +60 minutes. Begin with a naive/seasonal baseline, then compare XGBoost or LightGBM. Add a small PyTorch model only if the comparison is justified. Inputs may include recent demand, rolling demand, calendar variables, weather, events, traffic, and other service demand.
 
+The initial forecasting work is a historical backtest or labelled replay simulation. Latest published trip files can lag the events they describe; they cannot by themselves supply current wall-clock demand features. A live forecast requires a timely authorized source and measured freshness. Suppress or explicitly label stale and simulated forecasts.
+
+A replay scenario must state when each field becomes available. A completed trip record replayed at pickup time must not expose its future dropoff, duration, distance or final fare as pickup-time features. Context corrections and source publication delays also need an as-of availability policy. Evaluate a simulated pickup feed separately from the actual delayed published-data feed.
+
 Train on versioned Gold features and use chronological validation and out-of-time testing. Prevent future leakage in windows, labels, context availability, preprocessing, and joins. Report MAE and RMSE; use MAPE only with explicit treatment of zero or near-zero demand. Report prediction-interval coverage only if intervals are implemented. Slice results by city, zone, service, horizon, and time period where sample sizes support it.
 
 Flink can emit operational anomaly candidates from stateful rolling statistics. The ML layer may produce a more developed anomaly score, severity, and explanation features. Define how candidates and model outputs are related, versioned, and deduplicated before presenting them as one anomaly feed. Thresholds require measured calibration. Travel-time estimation is optional.

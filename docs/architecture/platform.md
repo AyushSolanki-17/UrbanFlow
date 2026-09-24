@@ -32,7 +32,7 @@ Iceberg is a table format, MinIO stores objects, and the catalog coordinates tab
 2. Preserve raw files in object storage and load source-shaped Bronze tables through a selected writer.
 3. Validate and normalize into Silver; quarantine invalid records with reasons and source references.
 4. Produce Gold aggregates and features. Spark is the intended Bronze-to-Silver owner; proposed dbt-trino owns Silver-to-Gold from Stage 2 after adapter validation. Stage 1 uses one selected temporary Gold writer and migrates ownership explicitly.
-5. Query published tables through Trino. APIs expose bounded results to the dashboard and authorized tools.
+5. Query published tables through Trino. The first portal consumes versioned Gold exports; later APIs expose bounded results to the dashboard and authorized tools.
 
 The Stage 1 writer remains an implementation decision. Kafka and Flink are not required merely to load historical Parquet. NiFi becomes useful as ingestion and routing grow.
 
@@ -48,7 +48,8 @@ Streaming writes separate `rt.zone_5min` and `rt.anomalies` tables; batch jobs o
 
 ## Query and product paths
 
-- Historical analytics: Iceberg → Trino → FastAPI → dashboard.
+- Initial public portal: validated Gold snapshots → versioned JSON export → static Next.js pages.
+- Historical analytics with runtime queries: Iceberg → Trino → FastAPI → dashboard.
 - Current demand: Flink → Redis → FastAPI → dashboard.
 - ML: Gold features → training/evaluation → versioned model → inference API.
 - Natural-language analytics: authorized agent tools → validated results → grounded explanation.

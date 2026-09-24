@@ -64,7 +64,9 @@ Avro versus Protobuf and the registry implementation remain open. Validate compa
 | Gold | `zone_hour_demand`, `zone_hour_features`, `forecasting_features`, `mobility_anomalies`, `model_predictions` | Business grain, feature versions, and lineage documented |
 | Optional Gold | `travel_time_features` | Created only if travel-time work is included |
 
-`zone_hour_demand` has a proposed grain of `(city, zone, hour)` and measures such as trip count, average distance/fare, and HVFHV count. Weather, event counts, and traffic require explicit aggregation and join rules before inclusion; joining raw context rows directly can multiply trip counts.
+`zone_hour_demand` has a proposed grain of `(city, zone, hour)` (all supported services combined; service breakdowns require explicit columns or a separate service-grain product) and measures such as trip count, average distance/fare, and HVFHV count. Weather, event counts, and traffic require explicit aggregation and join rules before inclusion; joining raw context rows directly can multiply trip counts.
+
+Define canonical window keys as unambiguous UTC instants with `[start, end)` bounds; keep local timezone/offset for display and calendar features. Two repeated local hours during a DST transition must remain distinct. Ambiguous or nonexistent source-local timestamps need a declared resolution/quarantine policy, not an implicit host-timezone conversion.
 
 Hourly tables alone cannot supply all 15/30/60-minute forecasting targets. Define finer-grained feature/label tables during ML design, with a fixed prediction origin and horizon. Avoid treating five-minute streaming windows and hourly Gold rows as interchangeable.
 
@@ -74,7 +76,7 @@ Choose partitions, file sizes, compaction, snapshot retention, and write modes t
 
 Initial rules cover missing identity/timestamps, dropoff before pickup, invalid locations, unknown city/service, unreasonable passenger count, and negative distance/fare. Source exceptions such as adjustment records need explicit handling rather than silent coercion. Custom code checks and, with SQL modelling, dbt tests gate Silver/Gold publication. Add Great Expectations where it provides required coverage; no framework substitutes for defined quality rules.
 
-Quarantine preserves the original record, source reference, rule/version, reason, and processing run so fixes can be replayed. Track accepted, rejected, and duplicate counts and reconcile them against source manifests.
+Quarantine preserves the original record, source reference, rule/version, reason, and processing run so fixes can be replayed. Track accepted, rejected, and duplicate counts and reconcile them against source manifests. Define mutually exclusive terminal dispositions so their sum equals the parsed input row count; parsing/file failures are tracked separately and block publication according to policy. Preserve source row provenance when equal-valued rows may represent distinct trips; a repeated file or event is not the same thing as two legitimate identical records.
 
 Use event-time windows (five minutes in the initial streaming proposal). Watermark delay, allowed lateness, state retention, too-late routing, correction behavior, and deduplication horizon remain to be chosen. Record per-stage delivery semantics and sink idempotency; checkpoints alone do not prove end-to-end exactly-once results.
 

@@ -11,9 +11,9 @@ The local machine is the development and failure-testing laboratory. Do not assu
 | Profile | Services/workloads | Purpose |
 | --- | --- | --- |
 | Foundation | MinIO, selected Iceberg catalog, Trino, selected ingestion/table writer; metadata DB if needed | First Bronze → Silver → Gold query path |
-| Streaming | Foundation plus Kafka, registry, Flink, replay producer; Redis when live serving is added | Event-time processing and recovery |
-| Batch | Storage/catalog plus Spark; Airflow when scheduling is introduced | Transformations, backfills, feature generation |
-| Product | FastAPI, Next.js, relevant query/cache services; inference and agent when available | Dashboard and API development |
+| Streaming | Shared storage/catalog plus Kafka, registry, Flink and replay producer; query engine only for verification, Redis with current-state serving | Event-time processing and recovery |
+| Batch | Storage/catalog plus Spark; dbt and Trino for Gold modelling, Airflow with scheduling | Transformations, backfills, feature generation |
+| Product | Next.js and validated exports first; FastAPI/query/cache services, inference and agent when needed | Dashboard and API development |
 | Observability | Prometheus, Grafana, OpenTelemetry Collector; Loki and trace backend as introduced | Instrumentation and diagnosis |
 | ML | Feature access, training runtime, MLflow, artifact storage, inference | Reproducible experiments and serving |
 

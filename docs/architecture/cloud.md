@@ -9,7 +9,7 @@
 | Tier | Scope | Intended operating model |
 | --- | --- | --- |
 | Developer | Full logical platform through selective local profiles | Local development, integration, failure experiments |
-| Public demo | Next.js, FastAPI, limited inference/agent, curated data, optional PostgreSQL/Redis | Small bounded product deployment |
+| Public demo | Static Next.js with curated exports first; FastAPI, inference/agent and database/cache only with features needing them | Small bounded product deployment |
 | Production reference | Durable event backbone, distributed compute, shared lakehouse, product and observability services | Documented architecture; temporary deployment only when justified |
 
 A public demo must label its data coverage, refresh time, and replay behavior. A small analytical backend may serve curated data through the same API interfaces. PostgreSQL in that tier must not be represented as the full Iceberg analytical lake.
