@@ -12,31 +12,31 @@ Measure backpressure by slowing a sink and observing Kafka lag, throughput, even
 
 ## Observability
 
-| Signal | Planned collection / display | Examples |
-| --- | --- | --- |
-| Metrics | Prometheus and Grafana | Kafka lag, records processed, Flink latency/checkpoints, late/duplicate events, Iceberg write latency, Trino latency, API/model/tool latency |
-| Logs | Structured JSON; Loki proposed | Source/run identity, service, operation, request/trace ID, status, error class |
-| Traces | OpenTelemetry instrumentation and Collector | API → agent → SQL guard → Trino → response; backend still undecided |
-| Data health | Pipeline checks and dashboards | Freshness, quarantine rate, reconciliation counts, missing partitions |
-| ML health | Evaluation and serving metrics | Feature/prediction/error drift, model version, prediction age |
+| Signal      | Planned collection / display                | Examples                                                                                                                                     |
+| ----------- | ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Metrics     | Prometheus and Grafana                      | Kafka lag, records processed, Flink latency/checkpoints, late/duplicate events, Iceberg write latency, Trino latency, API/model/tool latency |
+| Logs        | Structured JSON; Loki proposed              | Source/run identity, service, operation, request/trace ID, status, error class                                                               |
+| Traces      | OpenTelemetry instrumentation and Collector | API → agent → SQL guard → Trino → response; backend still undecided                                                                          |
+| Data health | Pipeline checks and dashboards              | Freshness, quarantine rate, reconciliation counts, missing partitions                                                                        |
+| ML health   | Evaluation and serving metrics              | Feature/prediction/error drift, model version, prediction age                                                                                |
 
 Define units and whether latency uses event time or wall-clock time. Proposed metric names in the spec are illustrative, not an implemented exporter contract. Set thresholds from measurements. Redact secrets and sensitive request content; keep metric labels bounded.
 
 ## Failure lab
 
-| Experiment | Expected behavior to verify |
-| --- | --- |
-| Duplicate Kafka event | Published counts follow the documented identity/dedup policy |
-| Late / too-late event | Correct event-time window or explicit late-data route/correction |
-| Flink worker failure / checkpoint recovery | State restores; reconciled output reveals losses or duplicates |
-| Schema evolution | Compatible additions work; incompatible changes are rejected or migrated deliberately |
-| Bad records | Quarantine with reasons; curated publication remains valid |
-| Spark task failure | Retry/backfill does not publish partial or duplicate output |
-| Trino outage / slow query | Bounded failures and timeouts without a cascading outage |
-| Model drift | Detection and investigation with versioned evidence |
-| Agent SQL / prompt injection | Permissions and resource limits remain enforced |
-| API timeout | Bounded retries and explicit failure response |
-| Slow downstream sink | Observable backpressure and recovery without silent loss |
+| Experiment                                 | Expected behavior to verify                                                           |
+| ------------------------------------------ | ------------------------------------------------------------------------------------- |
+| Duplicate Kafka event                      | Published counts follow the documented identity/dedup policy                          |
+| Late / too-late event                      | Correct event-time window or explicit late-data route/correction                      |
+| Flink worker failure / checkpoint recovery | State restores; reconciled output reveals losses or duplicates                        |
+| Schema evolution                           | Compatible additions work; incompatible changes are rejected or migrated deliberately |
+| Bad records                                | Quarantine with reasons; curated publication remains valid                            |
+| Spark task failure                         | Retry/backfill does not publish partial or duplicate output                           |
+| Trino outage / slow query                  | Bounded failures and timeouts without a cascading outage                              |
+| Model drift                                | Detection and investigation with versioned evidence                                   |
+| Agent SQL / prompt injection               | Permissions and resource limits remain enforced                                       |
+| API timeout                                | Bounded retries and explicit failure response                                         |
+| Slow downstream sink                       | Observable backpressure and recovery without silent loss                              |
 
 Every report should record scenario, setup, data identity, software/configuration, injected fault, expected behavior, observed behavior, recovery steps, metrics, and lessons. A passing recovery test includes output reconciliation, not just a green service status.
 
@@ -44,21 +44,23 @@ Every report should record scenario, setup, data identity, software/configuratio
 
 Expand these into service-specific executable procedures once deployments and metrics exist.
 
-| Symptom | Inspect / likely causes | Recovery and verification |
-| --- | --- | --- |
-| Kafka lag grows | Arrival rate, partition skew, consumer errors, Flink pressure, sink latency | Relieve the verified bottleneck or pause replay; confirm lag declines and reconcile counts |
-| Flink restarts | Latest successful checkpoint, logs, state-store access, resource pressure | Restore using tested checkpoint/savepoint policy; verify offsets, state, durable outputs, and cache freshness |
-| Quarantine spikes | Failing rules, source schema/version, manifests | Fix contract or adapter with fixtures, reprocess isolated records, compare accepted/rejected totals |
-| Schema changes | Producer/consumer compatibility and table evolution plan | Gate rollout, migrate or roll back deliberately, replay compatibility tests |
-| Trino queries slow | Plans, scan size, partitions/files, concurrency, dependencies | Bound costly work, tune proven bottleneck, compare latency and correctness on the same query set |
-| Model quality degrades | Feature freshness, drift, labels, training/serving consistency | Investigate, evaluate challenger or roll back; verify horizon/zone error and freshness |
-| Agent fails | Authorization, guard decisions, tool traces, dependencies | Repair failing boundary or disable affected tool; rerun fixed security and grounding cases |
+| Symptom                | Inspect / likely causes                                                     | Recovery and verification                                                                                     |
+| ---------------------- | --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| Kafka lag grows        | Arrival rate, partition skew, consumer errors, Flink pressure, sink latency | Relieve the verified bottleneck or pause replay; confirm lag declines and reconcile counts                    |
+| Flink restarts         | Latest successful checkpoint, logs, state-store access, resource pressure   | Restore using tested checkpoint/savepoint policy; verify offsets, state, durable outputs, and cache freshness |
+| Quarantine spikes      | Failing rules, source schema/version, manifests                             | Fix contract or adapter with fixtures, reprocess isolated records, compare accepted/rejected totals           |
+| Schema changes         | Producer/consumer compatibility and table evolution plan                    | Gate rollout, migrate or roll back deliberately, replay compatibility tests                                   |
+| Trino queries slow     | Plans, scan size, partitions/files, concurrency, dependencies               | Bound costly work, tune proven bottleneck, compare latency and correctness on the same query set              |
+| Model quality degrades | Feature freshness, drift, labels, training/serving consistency              | Investigate, evaluate challenger or roll back; verify horizon/zone error and freshness                        |
+| Agent fails            | Authorization, guard decisions, tool traces, dependencies                   | Repair failing boundary or disable affected tool; rerun fixed security and grounding cases                    |
 
 ## Tests and delivery gates
 
 Unit tests cover adapters, identities, contract validation, feature logic, anomaly calculations, SQL guard, and tool arguments. Integration tests cover Kafka–Flink, engine–Iceberg/catalog, Airflow–batch, API–query/cache, and agent–tools. End-to-end tests trace a deterministic fixture through curated data and a visible result.
 
-GitHub Actions is the planned CI system: lint, unit/contract checks, data-quality smoke tests, integration/API/tool tests, image build, and security scans. Use small deterministic fixtures. Trivy, dependency updates, and secret scanning are proposed; SBOM tooling can follow when useful. Later deployment gates should include staging smoke tests and a tested rollback path.
+GitHub Actions now has a repository-quality workflow for formatting, Markdown lint and HTML checks, matching the local commands and pre-commit tools in [CONTRIBUTING.md](../../CONTRIBUTING.md). Dependabot is configured for npm and action updates. These checks do not test application or data behavior.
+
+Add unit/contract checks, data-quality smoke tests, integration/API/tool tests, image builds and security scans with the corresponding implementation. Use small deterministic fixtures. Trivy and secret scanning remain proposed; SBOM tooling can follow when useful. Later deployment gates should include staging smoke tests and a tested rollback path.
 
 ## Benchmark protocol
 

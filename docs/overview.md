@@ -25,14 +25,14 @@ The intended dashboard includes Overview, Live Demand, Map, Forecast, Anomalies,
 
 These are earlier planning targets, not downloaded dataset sizes or benchmark results. They remain useful workload categories, but record-count tiers do not override the local byte budget. Use 100–500 MB inputs for development and 2–5 GB inputs for normal experiments where measured expansion fits; reserve larger experiments for a total peak working-data footprint of at most 20 GB locally. Larger deployments can use larger datasets without changing the logical contracts.
 
-| Tier | Target workload | Purpose |
-| --- | --- | --- |
-| 0: demo | About 100K–500K records | Small product demonstration |
-| 1: development | About 3M records | Rapid local iteration; exact period depends on source |
-| 2: integration | About 10M records | Multi-period pipeline validation |
-| 3: production simulation | About 40M+ records | Larger Spark, Trino, and Iceberg experiments |
-| 4: multi-stream | Yellow Taxi, selected HVFHV, and context | Heterogeneous sources and features |
-| 5: stress | Historical replay at 1x, 10x, 100x, 1000x | Throughput, backpressure, and recovery |
+| Tier                     | Target workload                           | Purpose                                               |
+| ------------------------ | ----------------------------------------- | ----------------------------------------------------- |
+| 0: demo                  | About 100K–500K records                   | Small product demonstration                           |
+| 1: development           | About 3M records                          | Rapid local iteration; exact period depends on source |
+| 2: integration           | About 10M records                         | Multi-period pipeline validation                      |
+| 3: production simulation | About 40M+ records                        | Larger Spark, Trino, and Iceberg experiments          |
+| 4: multi-stream          | Yellow Taxi, selected HVFHV, and context  | Heterogeneous sources and features                    |
+| 5: stress                | Historical replay at 1x, 10x, 100x, 1000x | Throughput, backpressure, and recovery                |
 
 CI uses smaller deterministic fixtures, not the full demo tier. Synthetic events are reserved for controlled edge cases or stress beyond available real data.
 

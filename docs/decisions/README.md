@@ -38,34 +38,34 @@
 
 ## Reconciling the internal notes
 
-| Tension | Documentation resolution |
-| --- | --- |
+| Tension                                             | Documentation resolution                                                                                                         |
+| --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
 | Full technology list versus a small first milestone | Stage 1 implements a bounded historical lakehouse/query slice with explicit latest-release semantics; no full-stack prerequisite |
-| Catalog listed as a later addition | A shared catalog decision is required for coherent Iceberg access; Polaris is a candidate, not a selected dependency |
-| MLflow described as optional and later as locked | Plan tracking for Stage 5 with MLflow as the intended tool; no Stage 1 dependency |
-| OpenLineage called both essential and later | Require traceable lineage now in manifests/metadata; defer its automation through OpenLineage/Marquez |
-| Kafka Connect called high priority and optional | Add only for a concrete connector need; avoid overlapping Flink sink ownership |
-| Registry, Redis, and Loki absent from initial lock | Include as target additions at the contract/streaming, live-serving, and operations stages |
-| Singular and plural context-topic names | Use `weather.observations`, `traffic.observations`, and `city.events` consistently in this design |
-| Different timestamp/location names | Propose canonical `*_timestamp` fields with explicit location/zone mappings; finalize in versioned schemas |
-| Hourly Gold and short-horizon forecasts | Require finer-grained feature/label definitions for 15/30/60-minute forecasts |
-| Security and idempotency placed in Stage 7 | Establish basic correctness and permission boundaries with each feature; Stage 7 broadens hardening |
+| Catalog listed as a later addition                  | A shared catalog decision is required for coherent Iceberg access; Polaris is a candidate, not a selected dependency             |
+| MLflow described as optional and later as locked    | Plan tracking for Stage 5 with MLflow as the intended tool; no Stage 1 dependency                                                |
+| OpenLineage called both essential and later         | Require traceable lineage now in manifests/metadata; defer its automation through OpenLineage/Marquez                            |
+| Kafka Connect called high priority and optional     | Add only for a concrete connector need; avoid overlapping Flink sink ownership                                                   |
+| Registry, Redis, and Loki absent from initial lock  | Include as target additions at the contract/streaming, live-serving, and operations stages                                       |
+| Singular and plural context-topic names             | Use `weather.observations`, `traffic.observations`, and `city.events` consistently in this design                                |
+| Different timestamp/location names                  | Propose canonical `*_timestamp` fields with explicit location/zone mappings; finalize in versioned schemas                       |
+| Hourly Gold and short-horizon forecasts             | Require finer-grained feature/label definitions for 15/30/60-minute forecasts                                                    |
+| Security and idempotency placed in Stage 7          | Establish basic correctness and permission boundaries with each feature; Stage 7 broadens hardening                              |
 
 ## Open implementation choices
 
-| Choice | Resolve by |
-| --- | --- |
-| Stage 1 writer, catalog implementation, engine/version compatibility | Foundation implementation |
-| dbt-trino adapter/materializations and transfer of Gold ownership | Stage 2 modelling spike |
+| Choice                                                                                      | Resolve by                                       |
+| ------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| Stage 1 writer, catalog implementation, engine/version compatibility                        | Foundation implementation                        |
+| dbt-trino adapter/materializations and transfer of Gold ownership                           | Stage 2 modelling spike                          |
 | Historical periods, latest cadence, correction handling, retention and publication manifest | First source contract and refresh implementation |
-| Canonical physical types, units, timezone/DST, stable identity, corrections | First source contract |
-| Registry product, Avro/Protobuf, compatibility mode, retention/partition policy | Streaming implementation |
-| Watermarks, lateness, dedup horizon, sink commit semantics, correction ownership | Streaming correctness tests |
-| Redis keys, TTLs, recovery and stale-read policy | Live serving implementation |
-| Feature/label grain, temporal cutoffs, model gates, anomaly thresholds | ML experiments |
-| Trace backend, telemetry retention, alert thresholds, resource budgets | Operations implementation |
-| Authentication system, demo backend, LLM/model provider | Product implementation |
-| RPO/RTO/SLOs, HA, provider/region, concrete cost model | Any production deployment |
+| Canonical physical types, units, timezone/DST, stable identity, corrections                 | First source contract                            |
+| Registry product, Avro/Protobuf, compatibility mode, retention/partition policy             | Streaming implementation                         |
+| Watermarks, lateness, dedup horizon, sink commit semantics, correction ownership            | Streaming correctness tests                      |
+| Redis keys, TTLs, recovery and stale-read policy                                            | Live serving implementation                      |
+| Feature/label grain, temporal cutoffs, model gates, anomaly thresholds                      | ML experiments                                   |
+| Trace backend, telemetry retention, alert thresholds, resource budgets                      | Operations implementation                        |
+| Authentication system, demo backend, LLM/model provider                                     | Product implementation                           |
+| RPO/RTO/SLOs, HA, provider/region, concrete cost model                                      | Any production deployment                        |
 
 Resolve each choice with a focused ADR or versioned contract when evidence is available. Keep optional tools deferred until they solve a demonstrated problem.
 

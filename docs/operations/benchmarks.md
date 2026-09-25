@@ -14,15 +14,15 @@ Compare identical data and SQL semantics, reconcile results, and disclose differ
 
 ## Bounded experiments
 
-| Experiment | Compare / measure | Correctness guard |
-| --- | --- | --- |
-| CSV versus Parquet | Same sampled records; bytes, projection/filter read time | Same rows, types, null and timestamp interpretation; preserve original TLC Parquet |
-| File sizes and compaction | Small-file fixture versus compacted copy; count, scanned bytes, latency, rewrite cost | Same snapshot contents; retain rollback snapshot only within budget |
-| Partitioning | Same queries on alternative layouts; pruning and scan volume | Equal filtered aggregates |
-| Spark joins/skew | Broadcast versus shuffle, skewed fixture, repartition/salting; shuffle, task duration, memory | Equal join multiplicity and results |
-| DuckDB / Trino / Spark | Fixed query suite and controlled resources; startup, runtime, bytes read | Equal results; document access-mode differences |
-| Kafka/Flink replay | Increase rate gradually; lag, checkpoint duration, backpressure, late records | Reconcile durable results after stop/restart |
-| Quality and recovery | Inject bad rows, duplicate/restart, incompatible schema | Expected quarantine/rejection and final counts |
+| Experiment                | Compare / measure                                                                             | Correctness guard                                                                  |
+| ------------------------- | --------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| CSV versus Parquet        | Same sampled records; bytes, projection/filter read time                                      | Same rows, types, null and timestamp interpretation; preserve original TLC Parquet |
+| File sizes and compaction | Small-file fixture versus compacted copy; count, scanned bytes, latency, rewrite cost         | Same snapshot contents; retain rollback snapshot only within budget                |
+| Partitioning              | Same queries on alternative layouts; pruning and scan volume                                  | Equal filtered aggregates                                                          |
+| Spark joins/skew          | Broadcast versus shuffle, skewed fixture, repartition/salting; shuffle, task duration, memory | Equal join multiplicity and results                                                |
+| DuckDB / Trino / Spark    | Fixed query suite and controlled resources; startup, runtime, bytes read                      | Equal results; document access-mode differences                                    |
+| Kafka/Flink replay        | Increase rate gradually; lag, checkpoint duration, backpressure, late records                 | Reconcile durable results after stop/restart                                       |
+| Quality and recovery      | Inject bad rows, duplicate/restart, incompatible schema                                       | Expected quarantine/rejection and final counts                                     |
 
 Use small generated edge-case fixtures for skew and pathological file layouts; record that they are synthetic. The review's 100,000 tiny files and 40% hot-zone examples are experiment ideas, not observed facts or mandatory local workloads. Stop before disk/RAM limits are exceeded. Reuse historical inputs across experiments and release scratch copies safely afterward.
 

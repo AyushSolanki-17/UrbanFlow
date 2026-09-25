@@ -1,77 +1,854 @@
 <!doctype html>
 <html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="color-scheme" content="light dark">
-<title>UrbanFlow — What we are building</title>
-<style>
-:root{color-scheme:light;--bg:#f5f4ef;--paper:#fffefa;--ink:#20302b;--muted:#596760;--line:#d7ded5;--accent:#17634c;--soft:#e8f1e9;--amber:#775019;--code:#edf0eb;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
-*{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:24px}body{margin:0;background:var(--bg);color:var(--ink);line-height:1.65}a{color:var(--accent);text-underline-offset:3px}a:hover{text-decoration-thickness:2px}a:focus-visible,summary:focus-visible{outline:3px solid var(--accent);outline-offset:5px}.skip{position:absolute;left:16px;top:-80px;padding:10px;background:var(--paper);z-index:5}.skip:focus{top:12px}.shell{max-width:1160px;margin:auto;padding:0 28px}header{padding:28px 0 48px;border-bottom:1px solid var(--line);background:var(--paper)}.top{display:flex;justify-content:space-between;gap:18px;flex-wrap:wrap;font-size:13px}.brand{font-weight:750;letter-spacing:.04em}.status{color:var(--muted)}.eyebrow{font-size:12px;font-weight:750;text-transform:uppercase;letter-spacing:.12em;color:var(--accent);margin:48px 0 14px}h1{font-size:clamp(34px,5vw,60px);line-height:1.08;letter-spacing:-.045em;max-width:820px;margin:0 0 22px}h2{font-size:clamp(25px,3vw,34px);line-height:1.2;letter-spacing:-.025em;margin:0 0 18px}h3{font-size:19px;line-height:1.35;margin:0 0 10px}p{margin:0 0 16px}.lead{font-size:19px;max-width:820px;color:var(--muted)}.note{padding:17px 20px;border-left:4px solid var(--accent);background:var(--soft);margin-top:24px;max-width:900px}.note p:last-child{margin:0}.layout{display:grid;grid-template-columns:185px minmax(0,1fr);gap:46px}nav{padding-top:36px;align-self:start;position:sticky;top:0;font-size:13px}nav a{display:block;padding:8px 0;text-decoration:none;color:var(--muted)}nav a:hover{color:var(--accent)}nav strong{display:block;margin-bottom:8px}main{min-width:0}section{padding:40px 0;border-bottom:1px solid var(--line)}.number{display:block;font-size:12px;letter-spacing:.1em;font-weight:750;color:var(--accent);margin-bottom:10px}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.card{background:var(--paper);padding:22px;border:1px solid var(--line);border-radius:12px}.card p:last-child{margin:0}.tag{display:inline-block;font-size:11px;letter-spacing:.04em;font-weight:750;text-transform:uppercase;background:var(--soft);color:var(--accent);border-radius:5px;padding:3px 7px;margin-bottom:12px}.tag.later{background:var(--code);color:var(--muted)}.flow{list-style:none;padding:0;margin:24px 0;counter-reset:step}.flow li{position:relative;padding:0 0 22px 50px;border-left:2px solid var(--line);margin-left:15px;counter-increment:step}.flow li:last-child{border-left-color:transparent;padding-bottom:0}.flow li:before{content:counter(step);position:absolute;left:-17px;top:0;width:32px;height:32px;text-align:center;line-height:30px;background:var(--paper);border:1px solid var(--line);border-radius:50%;font-size:13px;color:var(--accent);font-weight:700}.flow strong{display:block}.flow p{color:var(--muted);margin:4px 0 0}.scroll{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--paper)}table{border-collapse:collapse;width:100%;font-size:14px;min-width:600px}th,td{text-align:left;padding:14px 16px;vertical-align:top;border-bottom:1px solid var(--line)}th{background:var(--soft);font-size:12px;text-transform:uppercase;letter-spacing:.04em}tr:last-child td{border-bottom:0}td:first-child{font-weight:650}code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:.87em;background:var(--code);padding:2px 5px;border-radius:4px;overflow-wrap:anywhere}pre{overflow:auto;background:var(--code);padding:22px;border-radius:10px;font-size:13px;line-height:1.8}pre code{padding:0;background:none;overflow-wrap:normal}ul,ol{padding-left:23px}li{margin-bottom:7px}details{background:var(--paper);border:1px solid var(--line);border-radius:10px;margin:12px 0;padding:0 20px}summary{cursor:pointer;padding:16px 0;font-weight:650}details p,details ul{font-size:14px}details .tag{margin:0 8px 0 0}small,.muted{color:var(--muted)}.questions{counter-reset:q;list-style:none;padding:0}.questions li{background:var(--paper);border:1px solid var(--line);padding:18px 20px;border-radius:10px;counter-increment:q}.questions li:before{content:"Q" counter(q) " · ";font-weight:750;color:var(--accent)}footer{padding:30px 0 50px;font-size:13px;color:var(--muted)}
-@media(prefers-color-scheme:dark){:root{color-scheme:dark;--bg:#14211c;--paper:#1a2a23;--ink:#e4eee6;--muted:#b1c2b6;--line:#35483c;--accent:#8ed5b3;--soft:#213c2e;--code:#23362b}}
-@media(max-width:800px){.layout{grid-template-columns:1fr;gap:0}nav{position:static;display:flex;flex-wrap:wrap;gap:6px 18px;padding:20px 0;border-bottom:1px solid var(--line)}nav strong{width:100%}nav a{padding:3px 0}.shell{padding:0 20px}.grid{grid-template-columns:1fr}.eyebrow{margin-top:32px}section{padding:32px 0}}
-@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
-@media print{nav,.skip{display:none}.layout{display:block}.shell{max-width:none;padding:0}body{background:white;color:black;font-size:11pt}header,section{padding:20px 0}.card,details{break-inside:avoid}pre{white-space:pre-wrap}a{color:inherit}.grid{display:block}.card{margin-bottom:10px}.scroll{overflow:visible}table{min-width:0}details:not([open]){display:none}.note{border:1px solid #777}.eyebrow{margin-top:15px}}
-</style>
-</head>
-<body>
-<a class="skip" href="#main">Skip to guide</a>
-<header><div class="shell">
-<div class="top"><span class="brand">URBANFLOW / PROJECT GUIDE</span><span class="status">Design proposal · 25 September 2026 · No implementation yet</span></div>
-<p class="eyebrow">The plan in plain technical language</p>
-<h1>From public trip records<br>to answers we can trust.</h1>
-<p class="lead">We are building a data platform that downloads mobility data, turns it into reliable tables, keeps those tables up to date, and uses them for analysis. Then we add streaming experiments, forecasts and a public portal.</p>
-<div class="note"><p><strong>This guide is for discussion.</strong> The architecture describes our current direction. The folder structure below is a proposal, not a scaffold we have already created. You can suggest changes by section number, folder path or question number.</p></div>
-</div></header>
-<div class="shell layout">
-<nav aria-label="Guide sections"><strong>Read the plan</strong><a href="#outcome">01 · The result</a><a href="#journey">02 · How data moves</a><a href="#freshness">03 · History and latest</a><a href="#tools">04 · Why these tools</a><a href="#build">05 · Build order</a><a href="#scale">06 · Local and larger</a><a href="#folders">07 · Proposed folders</a><a href="#boundaries">08 · Module rules</a><a href="#feedback">09 · Your suggestions</a><a href="diagrams/architecture.html">Detailed architecture ↗</a></nav>
-<main id="main">
-<section id="outcome"><span class="number">01 / THE RESULT</span><h2>What should this project actually do?</h2>
-<p>Start with NYC Yellow Taxi trips and taxi-zone reference data. Answer questions such as “How many pickups happened in this zone each hour?” and “How did demand change between two periods?” Every answer should identify the data period and source version behind it.</p>
-<div class="grid"><div class="card"><span class="tag">First useful result</span><h3>A reproducible data pipeline</h3><p>From a small source file, produce a checked demand table and a query result. Run it again without counting the same input twice. Ingest a new or corrected release without breaking an older experiment.</p></div><div class="card"><span class="tag">First public result</span><h3>A small, understandable portal</h3><p>Show the architecture, data coverage and measured engineering results. Publish compact data exports so the site can work while the development stack is stopped.</p></div><div class="card"><span class="tag later">Later</span><h3>Streaming and more sources</h3><p>Replay historical records as events to test late arrivals, duplicates and recovery. Add weather, events, traffic, other taxi services and eventually Chicago.</p></div><div class="card"><span class="tag later">Later</span><h3>Forecasts and an analytics assistant</h3><p>Evaluate demand forecasts against simple baselines. Let an assistant call controlled query tools and explain their results, with the same data and permission boundaries as the API.</p></div></div>
-<p class="muted" style="margin-top:20px">Success means reproducible results and measured behavior. We do not need an enormous dataset or every tool running together to demonstrate that.</p>
-</section>
-<section id="journey"><span class="number">02 / HOW DATA MOVES</span><h2>Follow one trip through the system</h2>
-<p>Imagine a trip picked up in zone 161 at 18:31. It eventually contributes one pickup to that zone’s hourly count.</p>
-<ol class="flow"><li><strong>Find and download the source release</strong><p>A source adapter discovers the requested historical period or a newly published release. It records where the file came from, its checksum and its size in a manifest—an inventory of that input.</p></li><li><strong>Keep the original, then create Bronze tables</strong><p>Object storage keeps the original source bytes. Bronze preserves the source’s fields and provenance. Parquet is the file format; Iceberg manages which files belong to each table and version.</p></li><li><strong>Validate and normalize into Silver</strong><p>Check timestamps, locations, units and identity. Invalid records go to quarantine with reasons. Spark becomes the main batch engine for this step; a smaller initial writer may be used in the first milestone.</p></li><li><strong>Calculate Gold tables</strong><p>Aggregate the accepted trips into defined products, such as <code>zone_hour_demand</code>. One selected writer does this first; proposed dbt models running through Trino take over Gold in Stage 2 after compatibility tests.</p></li><li><strong>Publish a checked version</strong><p>Verify totals and record the exact table snapshots. A snapshot identifies a table version. Advance the public release only when the result is complete, without allowing an older job to overwrite a newer release.</p></li><li><strong>Show the answer</strong><p>The first portal reads versioned JSON exports of Gold. Later, FastAPI can answer runtime queries through Trino, serve model predictions or read current replay state from Redis.</p></li></ol>
-<div class="note"><p><strong>Storage is not processing.</strong> MinIO stores objects. Parquet organizes columns inside files. Iceberg defines versioned tables over those files. A catalog locates and coordinates table metadata. Spark and Trino do the computation.</p></div>
-<p style="margin-top:18px"><a href="architecture/one-trip.md">Full one-trip walkthrough</a> · <a href="data-model/contracts.md">Table and event contracts</a></p>
-</section>
-<section id="freshness"><span class="number">03 / HISTORY AND LATEST</span><h2>Three workloads, with clear meanings</h2>
-<div class="scroll"><table><caption class="muted" style="text-align:left;padding:12px 16px">All three use explicit source identity and data coverage.</caption><thead><tr><th>Workload</th><th>What it means</th><th>Example</th></tr></thead><tbody><tr><td>Historical backfill</td><td>Load selected past periods and keep a fixed version for analysis.</td><td>Compare two months using the same cleaning rules.</td></tr><tr><td>Latest-source refresh</td><td>Discover and validate new published files or corrections to older files.</td><td>Add a newly released month; rebuild an affected period when its source changes.</td></tr><tr><td>Streaming replay</td><td>Send historical records through Kafka and Flink at a controlled rate.</td><td>Inject a duplicate, delay an event, restart a worker and check the final counts.</td></tr></tbody></table></div>
-<p style="margin-top:20px"><strong>“Latest published” is not “happening now.”</strong> The source can publish records after the trips occurred. The UI must show event coverage and refresh time separately. Replay must always be labelled as simulated arrival of historical records.</p>
-<p>Keep selected older periods and a recent window locally. A larger deployment can retain more history using the same contracts. When a source is corrected, update the affected period deliberately; do not simply append it and double the count. A failed refresh leaves the previous valid release available.</p>
-<p>Historical experiments pin their inputs. Forecasting also needs a rule for when each feature was available: a trip’s final fare or dropoff cannot be used to predict demand at its pickup time. Initial forecasts are backtests or replay simulations, not a claim of live forecasting.</p>
-<p><a href="architecture/data-lifecycle.md">Historical/latest lifecycle and acceptance cases</a></p>
-</section>
-<section id="tools"><span class="number">04 / WHY THESE TOOLS</span><h2>Each tool has a specific job</h2>
-<div class="scroll"><table><thead><tr><th>Component</th><th>Job in UrbanFlow</th><th>When</th></tr></thead><tbody>
-<tr><td>Python adapters</td><td>Discover releases, download files, record manifests and apply source-specific mappings.</td><td>Foundation</td></tr>
-<tr><td>MinIO + Parquet + Iceberg + catalog</td><td>Store data and maintain shared, versioned analytical tables. The catalog product is still to be selected.</td><td>Foundation</td></tr>
-<tr><td>Trino / DuckDB</td><td>Trino queries the lakehouse. DuckDB offers lightweight local inspection and a comparison baseline with a tested access mode.</td><td>Foundation / experiments</td></tr>
-<tr><td>Spark / dbt</td><td>Spark owns batch cleaning into Silver. Proposed dbt-trino models own Gold; they are not competing writers for the same table.</td><td>Stage 2; exact support tested first</td></tr>
-<tr><td>Airflow</td><td>Schedule finite refresh, backfill, modelling and maintenance jobs.</td><td>With orchestration</td></tr>
-<tr><td>Kafka + registry + Flink</td><td>Transport versioned events and calculate event-time results with recovery state. Flink writes separate streaming tables.</td><td>Streaming stage</td></tr>
-<tr><td>Next.js / FastAPI / Redis</td><td>Next.js is the portal. Add FastAPI for runtime features; Redis caches current state when needed.</td><td>Portal first; services progressively</td></tr>
-<tr><td>MLflow + models / agent tools</td><td>Track forecast experiments and serve versioned predictions; provide controlled natural-language analytics.</td><td>After reliable data products</td></tr>
-<tr><td>Tests and telemetry</td><td>Check correctness, freshness, failures and resource use. Prometheus/Grafana and other backends expand as services arrive.</td><td>Basic checks from the first feature</td></tr>
-</tbody></table></div>
-<p style="margin-top:20px">ClickHouse, OpenMetadata, NiFi, Kubernetes, Census enrichment and extra cloud platforms are not foundation dependencies. We add them only when a defined workload justifies their cost and maintenance.</p>
-</section>
-<section id="build"><span class="number">05 / BUILD ORDER</span><h2>What we will implement first</h2>
-<ol><li><strong>Prove the foundation works.</strong> Choose compatible catalog, writer and query-engine versions. Write and read a tiny Iceberg fixture. Decide source identity and correction rules.</li><li><strong>Build reliable ingestion.</strong> Discover releases, download with manifests, retry safely and enforce local resource budgets.</li><li><strong>Complete one analytical slice.</strong> Produce Bronze, Silver and Gold; quarantine bad rows; reconcile the final count. Demonstrate historical and latest refresh together.</li><li><strong>Add modelling and scheduling.</strong> Introduce Spark/dbt ownership, Airflow refresh/backfill jobs and safe table maintenance. Prove overlapping jobs do not corrupt publication.</li><li><strong>Publish evidence and a small portal.</strong> Run a controlled benchmark, export validated results and build architecture, engineering and data pages.</li></ol>
-<p>Then continue through streaming, additional sources/cities, ML, the agent, broader production hardening and the integrated public platform. These are the existing eight roadmap stages; the list above breaks the early work into smaller commits.</p>
-<div class="note"><p><strong>First milestone demo:</strong> start from a small fixture, run the pipeline, show a known zone/hour count, rerun without duplication, then refresh a release while the pinned historical result remains reproducible.</p></div>
-<p style="margin-top:18px"><a href="roadmap.md">Canonical roadmap and exit evidence</a></p>
-</section>
-<section id="scale"><span class="number">06 / LOCAL AND LARGER</span><h2>Start small without designing a dead end</h2>
-<div class="grid"><div class="card"><h3>Our local operating budget</h3><ul><li>16 GB RAM / 512 GB SSD host.</li><li>About 10 GB routine working data; at most 20 GB at peak.</li><li>Count raw/curated copies, snapshots, Kafka logs, checkpoints, exports and temporary rewrites.</li><li>Provisional 8–10 GB stack RAM; verify with measurements.</li><li>Run only the services needed for the current task.</li></ul></div><div class="card"><h3>The expandable architecture</h3><ul><li>Keep source adapters separate from transformations.</li><li>Configure endpoints, periods, retention and concurrency.</li><li>Keep table, event and API contracts versioned.</li><li>Allow larger storage and more workers in another deployment.</li><li>Test connector compatibility and recovery when moving environments.</li></ul></div></div>
-<p style="margin-top:20px">The 20 GB limit belongs to the local profile. It is not a limit embedded in the source model, API or overall architecture. If a new download cannot fit while retaining required history, admission pauses or the workload moves; the system must not silently delete protected snapshots.</p>
-</section>
-<section id="folders"><span class="number">07 / PROPOSED FOLDERS</span><h2>One repository, organized by responsibility</h2>
-<p><strong>Recommendation:</strong> keep one repository and one shared Python package initially. Separate SQL models, deployable apps, orchestration and infrastructure where they have different runtimes or ownership. Create directories when their first feature arrives; this is not a request to scaffold empty folders now.</p>
-<p>Today the repository contains documentation, its HTML/diagram assets, the root README and Git configuration. Everything below except those existing docs is proposed.</p>
-<pre aria-label="Proposed repository tree"><code>UrbanFlow/
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>UrbanFlow — What we are building</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f5f4ef;
+        --paper: #fffefa;
+        --ink: #20302b;
+        --muted: #596760;
+        --line: #d7ded5;
+        --accent: #17634c;
+        --soft: #e8f1e9;
+        --amber: #775019;
+        --code: #edf0eb;
+        font-family:
+          system-ui,
+          -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        scroll-behavior: smooth;
+        scroll-padding-top: 24px;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        line-height: 1.65;
+      }
+      a {
+        color: var(--accent);
+        text-underline-offset: 3px;
+      }
+      a:hover {
+        text-decoration-thickness: 2px;
+      }
+      a:focus-visible,
+      summary:focus-visible {
+        outline: 3px solid var(--accent);
+        outline-offset: 5px;
+      }
+      .skip {
+        position: absolute;
+        left: 16px;
+        top: -80px;
+        padding: 10px;
+        background: var(--paper);
+        z-index: 5;
+      }
+      .skip:focus {
+        top: 12px;
+      }
+      .shell {
+        max-width: 1160px;
+        margin: auto;
+        padding: 0 28px;
+      }
+      header {
+        padding: 28px 0 48px;
+        border-bottom: 1px solid var(--line);
+        background: var(--paper);
+      }
+      .top {
+        display: flex;
+        justify-content: space-between;
+        gap: 18px;
+        flex-wrap: wrap;
+        font-size: 13px;
+      }
+      .brand {
+        font-weight: 750;
+        letter-spacing: 0.04em;
+      }
+      .status {
+        color: var(--muted);
+      }
+      .eyebrow {
+        font-size: 12px;
+        font-weight: 750;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        color: var(--accent);
+        margin: 48px 0 14px;
+      }
+      h1 {
+        font-size: clamp(34px, 5vw, 60px);
+        line-height: 1.08;
+        letter-spacing: -0.045em;
+        max-width: 820px;
+        margin: 0 0 22px;
+      }
+      h2 {
+        font-size: clamp(25px, 3vw, 34px);
+        line-height: 1.2;
+        letter-spacing: -0.025em;
+        margin: 0 0 18px;
+      }
+      h3 {
+        font-size: 19px;
+        line-height: 1.35;
+        margin: 0 0 10px;
+      }
+      p {
+        margin: 0 0 16px;
+      }
+      .lead {
+        font-size: 19px;
+        max-width: 820px;
+        color: var(--muted);
+      }
+      .note {
+        padding: 17px 20px;
+        border-left: 4px solid var(--accent);
+        background: var(--soft);
+        margin-top: 24px;
+        max-width: 900px;
+      }
+      .note p:last-child {
+        margin: 0;
+      }
+      .layout {
+        display: grid;
+        grid-template-columns: 185px minmax(0, 1fr);
+        gap: 46px;
+      }
+      nav {
+        padding-top: 36px;
+        align-self: start;
+        position: sticky;
+        top: 0;
+        font-size: 13px;
+      }
+      nav a {
+        display: block;
+        padding: 8px 0;
+        text-decoration: none;
+        color: var(--muted);
+      }
+      nav a:hover {
+        color: var(--accent);
+      }
+      nav strong {
+        display: block;
+        margin-bottom: 8px;
+      }
+      main {
+        min-width: 0;
+      }
+      section {
+        padding: 40px 0;
+        border-bottom: 1px solid var(--line);
+      }
+      .number {
+        display: block;
+        font-size: 12px;
+        letter-spacing: 0.1em;
+        font-weight: 750;
+        color: var(--accent);
+        margin-bottom: 10px;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
+      }
+      .card {
+        background: var(--paper);
+        padding: 22px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+      }
+      .card p:last-child {
+        margin: 0;
+      }
+      .tag {
+        display: inline-block;
+        font-size: 11px;
+        letter-spacing: 0.04em;
+        font-weight: 750;
+        text-transform: uppercase;
+        background: var(--soft);
+        color: var(--accent);
+        border-radius: 5px;
+        padding: 3px 7px;
+        margin-bottom: 12px;
+      }
+      .tag.later {
+        background: var(--code);
+        color: var(--muted);
+      }
+      .flow {
+        list-style: none;
+        padding: 0;
+        margin: 24px 0;
+        counter-reset: step;
+      }
+      .flow li {
+        position: relative;
+        padding: 0 0 22px 50px;
+        border-left: 2px solid var(--line);
+        margin-left: 15px;
+        counter-increment: step;
+      }
+      .flow li:last-child {
+        border-left-color: transparent;
+        padding-bottom: 0;
+      }
+      .flow li:before {
+        content: counter(step);
+        position: absolute;
+        left: -17px;
+        top: 0;
+        width: 32px;
+        height: 32px;
+        text-align: center;
+        line-height: 30px;
+        background: var(--paper);
+        border: 1px solid var(--line);
+        border-radius: 50%;
+        font-size: 13px;
+        color: var(--accent);
+        font-weight: 700;
+      }
+      .flow strong {
+        display: block;
+      }
+      .flow p {
+        color: var(--muted);
+        margin: 4px 0 0;
+      }
+      .scroll {
+        overflow-x: auto;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: var(--paper);
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 14px;
+        min-width: 600px;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 14px 16px;
+        vertical-align: top;
+        border-bottom: 1px solid var(--line);
+      }
+      th {
+        background: var(--soft);
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+      tr:last-child td {
+        border-bottom: 0;
+      }
+      td:first-child {
+        font-weight: 650;
+      }
+      code {
+        font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+        font-size: 0.87em;
+        background: var(--code);
+        padding: 2px 5px;
+        border-radius: 4px;
+        overflow-wrap: anywhere;
+      }
+      pre {
+        overflow: auto;
+        background: var(--code);
+        padding: 22px;
+        border-radius: 10px;
+        font-size: 13px;
+        line-height: 1.8;
+      }
+      pre code {
+        padding: 0;
+        background: none;
+        overflow-wrap: normal;
+      }
+      ul,
+      ol {
+        padding-left: 23px;
+      }
+      li {
+        margin-bottom: 7px;
+      }
+      details {
+        background: var(--paper);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        margin: 12px 0;
+        padding: 0 20px;
+      }
+      summary {
+        cursor: pointer;
+        padding: 16px 0;
+        font-weight: 650;
+      }
+      details p,
+      details ul {
+        font-size: 14px;
+      }
+      details .tag {
+        margin: 0 8px 0 0;
+      }
+      small,
+      .muted {
+        color: var(--muted);
+      }
+      .questions {
+        counter-reset: q;
+        list-style: none;
+        padding: 0;
+      }
+      .questions li {
+        background: var(--paper);
+        border: 1px solid var(--line);
+        padding: 18px 20px;
+        border-radius: 10px;
+        counter-increment: q;
+      }
+      .questions li:before {
+        content: "Q" counter(q) " · ";
+        font-weight: 750;
+        color: var(--accent);
+      }
+      footer {
+        padding: 30px 0 50px;
+        font-size: 13px;
+        color: var(--muted);
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          color-scheme: dark;
+          --bg: #14211c;
+          --paper: #1a2a23;
+          --ink: #e4eee6;
+          --muted: #b1c2b6;
+          --line: #35483c;
+          --accent: #8ed5b3;
+          --soft: #213c2e;
+          --code: #23362b;
+        }
+      }
+      @media (max-width: 800px) {
+        .layout {
+          grid-template-columns: 1fr;
+          gap: 0;
+        }
+        nav {
+          position: static;
+          display: flex;
+          flex-wrap: wrap;
+          gap: 6px 18px;
+          padding: 20px 0;
+          border-bottom: 1px solid var(--line);
+        }
+        nav strong {
+          width: 100%;
+        }
+        nav a {
+          padding: 3px 0;
+        }
+        .shell {
+          padding: 0 20px;
+        }
+        .grid {
+          grid-template-columns: 1fr;
+        }
+        .eyebrow {
+          margin-top: 32px;
+        }
+        section {
+          padding: 32px 0;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        html {
+          scroll-behavior: auto;
+        }
+      }
+      @media print {
+        nav,
+        .skip {
+          display: none;
+        }
+        .layout {
+          display: block;
+        }
+        .shell {
+          max-width: none;
+          padding: 0;
+        }
+        body {
+          background: white;
+          color: black;
+          font-size: 11pt;
+        }
+        header,
+        section {
+          padding: 20px 0;
+        }
+        .card,
+        details {
+          break-inside: avoid;
+        }
+        pre {
+          white-space: pre-wrap;
+        }
+        a {
+          color: inherit;
+        }
+        .grid {
+          display: block;
+        }
+        .card {
+          margin-bottom: 10px;
+        }
+        .scroll {
+          overflow: visible;
+        }
+        table {
+          min-width: 0;
+        }
+        details:not([open]) {
+          display: none;
+        }
+        .note {
+          border: 1px solid #777;
+        }
+        .eyebrow {
+          margin-top: 15px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to guide</a>
+    <header>
+      <div class="shell">
+        <div class="top">
+          <span class="brand">URBANFLOW / PROJECT GUIDE</span
+          ><span class="status"
+            >Design proposal · 25 September 2026 · Application not implemented</span
+          >
+        </div>
+        <p class="eyebrow">The plan in plain technical language</p>
+        <h1>From public trip records<br />to answers we can trust.</h1>
+        <p class="lead">
+          We are building a data platform that downloads mobility data, turns it into reliable
+          tables, keeps those tables up to date, and uses them for analysis. Then we add streaming
+          experiments, forecasts and a public portal.
+        </p>
+        <div class="note">
+          <p>
+            <strong>This guide is for discussion.</strong> The architecture describes our current
+            direction. The folder structure below is a proposal, not a scaffold we have already
+            created. You can suggest changes by section number, folder path or question number.
+          </p>
+        </div>
+      </div>
+    </header>
+    <div class="shell layout">
+      <nav aria-label="Guide sections">
+        <strong>Read the plan</strong><a href="#outcome">01 · The result</a
+        ><a href="#journey">02 · How data moves</a><a href="#freshness">03 · History and latest</a
+        ><a href="#tools">04 · Why these tools</a><a href="#build">05 · Build order</a
+        ><a href="#scale">06 · Local and larger</a><a href="#folders">07 · Proposed folders</a
+        ><a href="#boundaries">08 · Module rules</a><a href="#feedback">09 · Your suggestions</a
+        ><a href="diagrams/architecture.html">Detailed architecture ↗</a>
+      </nav>
+      <main id="main">
+        <section id="outcome">
+          <span class="number">01 / THE RESULT</span>
+          <h2>What should this project actually do?</h2>
+          <p>
+            Start with NYC Yellow Taxi trips and taxi-zone reference data. Answer questions such as
+            “How many pickups happened in this zone each hour?” and “How did demand change between
+            two periods?” Every answer should identify the data period and source version behind it.
+          </p>
+          <div class="grid">
+            <div class="card">
+              <span class="tag">First useful result</span>
+              <h3>A reproducible data pipeline</h3>
+              <p>
+                From a small source file, produce a checked demand table and a query result. Run it
+                again without counting the same input twice. Ingest a new or corrected release
+                without breaking an older experiment.
+              </p>
+            </div>
+            <div class="card">
+              <span class="tag">First public result</span>
+              <h3>A small, understandable portal</h3>
+              <p>
+                Show the architecture, data coverage and measured engineering results. Publish
+                compact data exports so the site can work while the development stack is stopped.
+              </p>
+            </div>
+            <div class="card">
+              <span class="tag later">Later</span>
+              <h3>Streaming and more sources</h3>
+              <p>
+                Replay historical records as events to test late arrivals, duplicates and recovery.
+                Add weather, events, traffic, other taxi services and eventually Chicago.
+              </p>
+            </div>
+            <div class="card">
+              <span class="tag later">Later</span>
+              <h3>Forecasts and an analytics assistant</h3>
+              <p>
+                Evaluate demand forecasts against simple baselines. Let an assistant call controlled
+                query tools and explain their results, with the same data and permission boundaries
+                as the API.
+              </p>
+            </div>
+          </div>
+          <p class="muted" style="margin-top: 20px">
+            Success means reproducible results and measured behavior. We do not need an enormous
+            dataset or every tool running together to demonstrate that.
+          </p>
+        </section>
+        <section id="journey">
+          <span class="number">02 / HOW DATA MOVES</span>
+          <h2>Follow one trip through the system</h2>
+          <p>
+            Imagine a trip picked up in zone 161 at 18:31. It eventually contributes one pickup to
+            that zone’s hourly count.
+          </p>
+          <ol class="flow">
+            <li>
+              <strong>Find and download the source release</strong>
+              <p>
+                A source adapter discovers the requested historical period or a newly published
+                release. It records where the file came from, its checksum and its size in a
+                manifest—an inventory of that input.
+              </p>
+            </li>
+            <li>
+              <strong>Keep the original, then create Bronze tables</strong>
+              <p>
+                Object storage keeps the original source bytes. Bronze preserves the source’s fields
+                and provenance. Parquet is the file format; Iceberg manages which files belong to
+                each table and version.
+              </p>
+            </li>
+            <li>
+              <strong>Validate and normalize into Silver</strong>
+              <p>
+                Check timestamps, locations, units and identity. Invalid records go to quarantine
+                with reasons. Spark becomes the main batch engine for this step; a smaller initial
+                writer may be used in the first milestone.
+              </p>
+            </li>
+            <li>
+              <strong>Calculate Gold tables</strong>
+              <p>
+                Aggregate the accepted trips into defined products, such as
+                <code>zone_hour_demand</code>. One selected writer does this first; proposed dbt
+                models running through Trino take over Gold in Stage 2 after compatibility tests.
+              </p>
+            </li>
+            <li>
+              <strong>Publish a checked version</strong>
+              <p>
+                Verify totals and record the exact table snapshots. A snapshot identifies a table
+                version. Advance the public release only when the result is complete, without
+                allowing an older job to overwrite a newer release.
+              </p>
+            </li>
+            <li>
+              <strong>Show the answer</strong>
+              <p>
+                The first portal reads versioned JSON exports of Gold. Later, FastAPI can answer
+                runtime queries through Trino, serve model predictions or read current replay state
+                from Redis.
+              </p>
+            </li>
+          </ol>
+          <div class="note">
+            <p>
+              <strong>Storage is not processing.</strong> MinIO stores objects. Parquet organizes
+              columns inside files. Iceberg defines versioned tables over those files. A catalog
+              locates and coordinates table metadata. Spark and Trino do the computation.
+            </p>
+          </div>
+          <p style="margin-top: 18px">
+            <a href="architecture/one-trip.md">Full one-trip walkthrough</a> ·
+            <a href="data-model/contracts.md">Table and event contracts</a>
+          </p>
+        </section>
+        <section id="freshness">
+          <span class="number">03 / HISTORY AND LATEST</span>
+          <h2>Three workloads, with clear meanings</h2>
+          <div class="scroll">
+            <table>
+              <caption class="muted" style="text-align: left; padding: 12px 16px">
+                All three use explicit source identity and data coverage.
+              </caption>
+              <thead>
+                <tr>
+                  <th>Workload</th>
+                  <th>What it means</th>
+                  <th>Example</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Historical backfill</td>
+                  <td>Load selected past periods and keep a fixed version for analysis.</td>
+                  <td>Compare two months using the same cleaning rules.</td>
+                </tr>
+                <tr>
+                  <td>Latest-source refresh</td>
+                  <td>Discover and validate new published files or corrections to older files.</td>
+                  <td>
+                    Add a newly released month; rebuild an affected period when its source changes.
+                  </td>
+                </tr>
+                <tr>
+                  <td>Streaming replay</td>
+                  <td>Send historical records through Kafka and Flink at a controlled rate.</td>
+                  <td>
+                    Inject a duplicate, delay an event, restart a worker and check the final counts.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p style="margin-top: 20px">
+            <strong>“Latest published” is not “happening now.”</strong> The source can publish
+            records after the trips occurred. The UI must show event coverage and refresh time
+            separately. Replay must always be labelled as simulated arrival of historical records.
+          </p>
+          <p>
+            Keep selected older periods and a recent window locally. A larger deployment can retain
+            more history using the same contracts. When a source is corrected, update the affected
+            period deliberately; do not simply append it and double the count. A failed refresh
+            leaves the previous valid release available.
+          </p>
+          <p>
+            Historical experiments pin their inputs. Forecasting also needs a rule for when each
+            feature was available: a trip’s final fare or dropoff cannot be used to predict demand
+            at its pickup time. Initial forecasts are backtests or replay simulations, not a claim
+            of live forecasting.
+          </p>
+          <p>
+            <a href="architecture/data-lifecycle.md"
+              >Historical/latest lifecycle and acceptance cases</a
+            >
+          </p>
+        </section>
+        <section id="tools">
+          <span class="number">04 / WHY THESE TOOLS</span>
+          <h2>Each tool has a specific job</h2>
+          <div class="scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Component</th>
+                  <th>Job in UrbanFlow</th>
+                  <th>When</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Python adapters</td>
+                  <td>
+                    Discover releases, download files, record manifests and apply source-specific
+                    mappings.
+                  </td>
+                  <td>Foundation</td>
+                </tr>
+                <tr>
+                  <td>MinIO + Parquet + Iceberg + catalog</td>
+                  <td>
+                    Store data and maintain shared, versioned analytical tables. The catalog product
+                    is still to be selected.
+                  </td>
+                  <td>Foundation</td>
+                </tr>
+                <tr>
+                  <td>Trino / DuckDB</td>
+                  <td>
+                    Trino queries the lakehouse. DuckDB offers lightweight local inspection and a
+                    comparison baseline with a tested access mode.
+                  </td>
+                  <td>Foundation / experiments</td>
+                </tr>
+                <tr>
+                  <td>Spark / dbt</td>
+                  <td>
+                    Spark owns batch cleaning into Silver. Proposed dbt-trino models own Gold; they
+                    are not competing writers for the same table.
+                  </td>
+                  <td>Stage 2; exact support tested first</td>
+                </tr>
+                <tr>
+                  <td>Airflow</td>
+                  <td>Schedule finite refresh, backfill, modelling and maintenance jobs.</td>
+                  <td>With orchestration</td>
+                </tr>
+                <tr>
+                  <td>Kafka + registry + Flink</td>
+                  <td>
+                    Transport versioned events and calculate event-time results with recovery state.
+                    Flink writes separate streaming tables.
+                  </td>
+                  <td>Streaming stage</td>
+                </tr>
+                <tr>
+                  <td>Next.js / FastAPI / Redis</td>
+                  <td>
+                    Next.js is the portal. Add FastAPI for runtime features; Redis caches current
+                    state when needed.
+                  </td>
+                  <td>Portal first; services progressively</td>
+                </tr>
+                <tr>
+                  <td>MLflow + models / agent tools</td>
+                  <td>
+                    Track forecast experiments and serve versioned predictions; provide controlled
+                    natural-language analytics.
+                  </td>
+                  <td>After reliable data products</td>
+                </tr>
+                <tr>
+                  <td>Tests and telemetry</td>
+                  <td>
+                    Check correctness, freshness, failures and resource use. Prometheus/Grafana and
+                    other backends expand as services arrive.
+                  </td>
+                  <td>Basic checks from the first feature</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p style="margin-top: 20px">
+            ClickHouse, OpenMetadata, NiFi, Kubernetes, Census enrichment and extra cloud platforms
+            are not foundation dependencies. We add them only when a defined workload justifies
+            their cost and maintenance.
+          </p>
+        </section>
+        <section id="build">
+          <span class="number">05 / BUILD ORDER</span>
+          <h2>What we will implement first</h2>
+          <ol>
+            <li>
+              <strong>Prove the foundation works.</strong> Choose compatible catalog, writer and
+              query-engine versions. Write and read a tiny Iceberg fixture. Decide source identity
+              and correction rules.
+            </li>
+            <li>
+              <strong>Build reliable ingestion.</strong> Discover releases, download with manifests,
+              retry safely and enforce local resource budgets.
+            </li>
+            <li>
+              <strong>Complete one analytical slice.</strong> Produce Bronze, Silver and Gold;
+              quarantine bad rows; reconcile the final count. Demonstrate historical and latest
+              refresh together.
+            </li>
+            <li>
+              <strong>Add modelling and scheduling.</strong> Introduce Spark/dbt ownership, Airflow
+              refresh/backfill jobs and safe table maintenance. Prove overlapping jobs do not
+              corrupt publication.
+            </li>
+            <li>
+              <strong>Publish evidence and a small portal.</strong> Run a controlled benchmark,
+              export validated results and build architecture, engineering and data pages.
+            </li>
+          </ol>
+          <p>
+            Then continue through streaming, additional sources/cities, ML, the agent, broader
+            production hardening and the integrated public platform. These are the existing eight
+            roadmap stages; the list above breaks the early work into smaller commits.
+          </p>
+          <div class="note">
+            <p>
+              <strong>First milestone demo:</strong> start from a small fixture, run the pipeline,
+              show a known zone/hour count, rerun without duplication, then refresh a release while
+              the pinned historical result remains reproducible.
+            </p>
+          </div>
+          <p style="margin-top: 18px">
+            <a href="roadmap.md">Canonical roadmap and exit evidence</a>
+          </p>
+        </section>
+        <section id="scale">
+          <span class="number">06 / LOCAL AND LARGER</span>
+          <h2>Start small without designing a dead end</h2>
+          <div class="grid">
+            <div class="card">
+              <h3>Our local operating budget</h3>
+              <ul>
+                <li>16 GB RAM / 512 GB SSD host.</li>
+                <li>About 10 GB routine working data; at most 20 GB at peak.</li>
+                <li>
+                  Count raw/curated copies, snapshots, Kafka logs, checkpoints, exports and
+                  temporary rewrites.
+                </li>
+                <li>Provisional 8–10 GB stack RAM; verify with measurements.</li>
+                <li>Run only the services needed for the current task.</li>
+              </ul>
+            </div>
+            <div class="card">
+              <h3>The expandable architecture</h3>
+              <ul>
+                <li>Keep source adapters separate from transformations.</li>
+                <li>Configure endpoints, periods, retention and concurrency.</li>
+                <li>Keep table, event and API contracts versioned.</li>
+                <li>Allow larger storage and more workers in another deployment.</li>
+                <li>Test connector compatibility and recovery when moving environments.</li>
+              </ul>
+            </div>
+          </div>
+          <p style="margin-top: 20px">
+            The 20 GB limit belongs to the local profile. It is not a limit embedded in the source
+            model, API or overall architecture. If a new download cannot fit while retaining
+            required history, admission pauses or the workload moves; the system must not silently
+            delete protected snapshots.
+          </p>
+        </section>
+        <section id="folders">
+          <span class="number">07 / PROPOSED FOLDERS</span>
+          <h2>One repository, organized by responsibility</h2>
+          <p>
+            <strong>Recommendation:</strong> keep one repository and one shared Python package
+            initially. Separate SQL models, deployable apps, orchestration and infrastructure where
+            they have different runtimes or ownership. Create directories when their first feature
+            arrives; this is not a request to scaffold empty folders now.
+          </p>
+          <p>
+            Today the repository contains documentation, HTML/diagram assets, project-specific agent
+            skills and instructions, plus formatting, linting, pre-commit and CI configuration. See
+            <a href="../CONTRIBUTING.md">contributor setup</a> for those runnable checks.
+            Application packages, data jobs and deployment directories in the tree below remain
+            proposed.
+          </p>
+          <pre aria-label="Proposed repository tree"><code>UrbanFlow/
 ├── README.md
 ├── docs/                       # Existing design docs and HTML guides
 │   └── internal/               # Local raw notes; stays ignored
@@ -109,26 +886,170 @@
 ├── benchmarks/                 # Harnesses, workloads, small run reports
 ├── scripts/                    # Thin developer commands; no business logic
 └── .github/workflows/          # Checks added with runnable code</code></pre>
-<h3>Why these boundaries?</h3>
-<details open><summary><span class="tag">Foundation</span>Sources, ingestion and lakehouse</summary><p><code>sources/nyc_tlc/</code> knows where TLC files are and how their fields map. <code>ingestion/</code> owns the reusable download/run lifecycle. <code>lakehouse/</code> owns catalog/table interactions. A Chicago adapter should reuse the lifecycle without importing NYC-specific rules.</p><p>The first slice needs config, contracts, source/ingestion, lakehouse, quality and publication code. Add batch, replay and ML modules with their stages.</p></details>
-<details><summary><span class="tag">Foundation</span>Contracts, schemas and validation code</summary><p><code>data-contracts/</code> describes meaning: keys, units, table grain, freshness, ownership and correction policy. <code>schemas/</code> contains authoritative machine-readable shapes. <code>src/urbanflow/contracts/</code> loads and validates them; it should not maintain a second handwritten schema definition. Package or mount the schemas explicitly for each runtime.</p></details>
-<details><summary><span class="tag later">Stage 2</span>Batch, SQL models and orchestration</summary><p><code>batch/</code> contains Spark transformations. <code>models/</code> contains the proposed dbt project for Gold SQL. <code>orchestration/airflow/</code> schedules those jobs, passes parameters and handles dependencies. Transformation code remains testable without starting Airflow.</p><p>The first Gold writer is temporary. When dbt takes ownership, remove or retire that writer explicitly so both cannot publish the same model.</p></details>
-<details><summary><span class="tag later">Streaming</span>Replay and Flink</summary><p>The replay producer is Python code in the shared package. Flink has a separate job/build boundary because its runtime and eventual language choice can differ. Both consume versioned contracts. Flink writes <code>rt.zone_5min</code> and <code>rt.anomalies</code>; Spark does not mutate those tables.</p></details>
-<details><summary><span class="tag later">Product / ML</span>Apps and models</summary><p>The portal is a separate Node/TypeScript app. FastAPI is a separate deployable entry point but can import the shared Python package. Training code lives in <code>src/urbanflow/ml/</code>; learned model binaries live in artifact storage, not the dbt <code>models/</code> directory. Agent tools belong with the API initially and must enforce authorization and query limits.</p></details>
-<details><summary><span class="tag">Across stages</span>Configuration, infrastructure and tests</summary><p><code>configs/</code> stores non-secret workload settings: sources, selected periods, local limits and retention. <code>infra/</code> describes how services run. Secrets enter at runtime through uncommitted environment files or a secrets service. <code>tests/</code> checks code and cross-service behavior; dbt tests remain beside their SQL models. The portal keeps its framework-specific tests in its app.</p></details>
-<div class="note"><p><strong>Where does actual data go?</strong> Raw files, warehouse objects, checkpoints, local manifests, exports and large model artifacts belong in configured object-store locations or ignored runtime volumes outside the source tree. Only tiny fixtures and small reports belong in Git. Add the corresponding ignore rules when implementation introduces those paths.</p></div>
-</section>
-<section id="boundaries"><span class="number">08 / MODULE RULES</span><h2>Keep the structure useful as we grow</h2>
-<ul><li><strong>Core code does not depend on the portal, API or Airflow.</strong> Apps and scheduled jobs call shared logic through entry points.</li><li><strong>One owner per published table.</strong> A folder name is not enough: record writer ownership and transfer it deliberately when replacing an implementation.</li><li><strong>No hard-coded laptop assumptions.</strong> Pass source periods, endpoints, budgets and retention through configuration; validate them at startup.</li><li><strong>Retries must be safe.</strong> Preserve run identity, source version and expected publication predecessor so a restart does not double count or replace newer results.</li><li><strong>Do not turn every folder into a service.</strong> Split a runtime only when deployment, language or scaling needs it. Keep a small number of clear entry points.</li><li><strong>Changes travel with evidence.</strong> Each meaningful commit updates relevant contracts/docs and includes checks suitable for the feature.</li></ul>
-<p>This organization can support local profiles and larger deployments. The exact package tooling, Flink language, catalog and dbt adapter versions remain implementation decisions.</p>
-</section>
-<section id="feedback"><span class="number">09 / YOUR SUGGESTIONS</span><h2>What would you change?</h2>
-<p>You can refer to these question numbers in your reply. Nothing here requires a decision before you have read the guide.</p>
-<ol class="questions"><li><strong>Folder names:</strong> is <code>models/</code> clear enough for dbt, or would you prefer <code>transformations/dbt/</code> to avoid confusion with ML?</li><li><strong>Python organization:</strong> does one shared <code>src/urbanflow/</code> package feel clear, or is there a specific responsibility you want separated further?</li><li><strong>First visible demo:</strong> should we emphasize the zone/hour demand result, the one-trip trace, or the failure/recovery evidence when presenting the first slice?</li><li><strong>Portal scope:</strong> are architecture, engineering and data pages the right starting point, or is a small map/explorer important enough to prioritize next?</li><li><strong>Missing explanation:</strong> which step or tool still feels unclear? We can expand that section before implementing it.</li></ol>
-<p>This page is a reading and discussion guide, not a form. It sends nothing and stores no feedback. Share your suggestions in the conversation.</p>
-<p><a href="README.md">Documentation index</a> · <a href="diagrams/architecture.html">Detailed architecture diagram</a> · <a href="decisions/README.md">Decisions and open choices</a></p>
-</section>
-<footer>UrbanFlow · Project guide and proposed repository layout · 25 September 2026<br>The current Markdown documents govern architecture decisions. The proposed folder layout has not been implemented. This page works offline without external assets or scripts.</footer>
-</main></div>
-</body>
+          <h3>Why these boundaries?</h3>
+          <details open>
+            <summary><span class="tag">Foundation</span>Sources, ingestion and lakehouse</summary>
+            <p>
+              <code>sources/nyc_tlc/</code> knows where TLC files are and how their fields map.
+              <code>ingestion/</code> owns the reusable download/run lifecycle.
+              <code>lakehouse/</code> owns catalog/table interactions. A Chicago adapter should
+              reuse the lifecycle without importing NYC-specific rules.
+            </p>
+            <p>
+              The first slice needs config, contracts, source/ingestion, lakehouse, quality and
+              publication code. Add batch, replay and ML modules with their stages.
+            </p>
+          </details>
+          <details>
+            <summary>
+              <span class="tag">Foundation</span>Contracts, schemas and validation code
+            </summary>
+            <p>
+              <code>data-contracts/</code> describes meaning: keys, units, table grain, freshness,
+              ownership and correction policy. <code>schemas/</code> contains authoritative
+              machine-readable shapes. <code>src/urbanflow/contracts/</code> loads and validates
+              them; it should not maintain a second handwritten schema definition. Package or mount
+              the schemas explicitly for each runtime.
+            </p>
+          </details>
+          <details>
+            <summary>
+              <span class="tag later">Stage 2</span>Batch, SQL models and orchestration
+            </summary>
+            <p>
+              <code>batch/</code> contains Spark transformations. <code>models/</code> contains the
+              proposed dbt project for Gold SQL. <code>orchestration/airflow/</code> schedules those
+              jobs, passes parameters and handles dependencies. Transformation code remains testable
+              without starting Airflow.
+            </p>
+            <p>
+              The first Gold writer is temporary. When dbt takes ownership, remove or retire that
+              writer explicitly so both cannot publish the same model.
+            </p>
+          </details>
+          <details>
+            <summary><span class="tag later">Streaming</span>Replay and Flink</summary>
+            <p>
+              The replay producer is Python code in the shared package. Flink has a separate
+              job/build boundary because its runtime and eventual language choice can differ. Both
+              consume versioned contracts. Flink writes <code>rt.zone_5min</code> and
+              <code>rt.anomalies</code>; Spark does not mutate those tables.
+            </p>
+          </details>
+          <details>
+            <summary><span class="tag later">Product / ML</span>Apps and models</summary>
+            <p>
+              The portal is a separate Node/TypeScript app. FastAPI is a separate deployable entry
+              point but can import the shared Python package. Training code lives in
+              <code>src/urbanflow/ml/</code>; learned model binaries live in artifact storage, not
+              the dbt <code>models/</code> directory. Agent tools belong with the API initially and
+              must enforce authorization and query limits.
+            </p>
+          </details>
+          <details>
+            <summary>
+              <span class="tag">Across stages</span>Configuration, infrastructure and tests
+            </summary>
+            <p>
+              <code>configs/</code> stores non-secret workload settings: sources, selected periods,
+              local limits and retention. <code>infra/</code> describes how services run. Secrets
+              enter at runtime through uncommitted environment files or a secrets service.
+              <code>tests/</code> checks code and cross-service behavior; dbt tests remain beside
+              their SQL models. The portal keeps its framework-specific tests in its app.
+            </p>
+          </details>
+          <div class="note">
+            <p>
+              <strong>Where does actual data go?</strong> Raw files, warehouse objects, checkpoints,
+              local manifests, exports and large model artifacts belong in configured object-store
+              locations or ignored runtime volumes outside the source tree. Only tiny fixtures and
+              small reports belong in Git. Add the corresponding ignore rules when implementation
+              introduces those paths.
+            </p>
+          </div>
+        </section>
+        <section id="boundaries">
+          <span class="number">08 / MODULE RULES</span>
+          <h2>Keep the structure useful as we grow</h2>
+          <ul>
+            <li>
+              <strong>Core code does not depend on the portal, API or Airflow.</strong> Apps and
+              scheduled jobs call shared logic through entry points.
+            </li>
+            <li>
+              <strong>One owner per published table.</strong> A folder name is not enough: record
+              writer ownership and transfer it deliberately when replacing an implementation.
+            </li>
+            <li>
+              <strong>No hard-coded laptop assumptions.</strong> Pass source periods, endpoints,
+              budgets and retention through configuration; validate them at startup.
+            </li>
+            <li>
+              <strong>Retries must be safe.</strong> Preserve run identity, source version and
+              expected publication predecessor so a restart does not double count or replace newer
+              results.
+            </li>
+            <li>
+              <strong>Do not turn every folder into a service.</strong> Split a runtime only when
+              deployment, language or scaling needs it. Keep a small number of clear entry points.
+            </li>
+            <li>
+              <strong>Changes travel with evidence.</strong> Each meaningful commit updates relevant
+              contracts/docs and includes checks suitable for the feature.
+            </li>
+          </ul>
+          <p>
+            This organization can support local profiles and larger deployments. The exact package
+            tooling, Flink language, catalog and dbt adapter versions remain implementation
+            decisions.
+          </p>
+        </section>
+        <section id="feedback">
+          <span class="number">09 / YOUR SUGGESTIONS</span>
+          <h2>What would you change?</h2>
+          <p>
+            You can refer to these question numbers in your reply. Nothing here requires a decision
+            before you have read the guide.
+          </p>
+          <ol class="questions">
+            <li>
+              <strong>Folder names:</strong> is <code>models/</code> clear enough for dbt, or would
+              you prefer <code>transformations/dbt/</code> to avoid confusion with ML?
+            </li>
+            <li>
+              <strong>Python organization:</strong> does one shared
+              <code>src/urbanflow/</code> package feel clear, or is there a specific responsibility
+              you want separated further?
+            </li>
+            <li>
+              <strong>First visible demo:</strong> should we emphasize the zone/hour demand result,
+              the one-trip trace, or the failure/recovery evidence when presenting the first slice?
+            </li>
+            <li>
+              <strong>Portal scope:</strong> are architecture, engineering and data pages the right
+              starting point, or is a small map/explorer important enough to prioritize next?
+            </li>
+            <li>
+              <strong>Missing explanation:</strong> which step or tool still feels unclear? We can
+              expand that section before implementing it.
+            </li>
+          </ol>
+          <p>
+            This page is a reading and discussion guide, not a form. It sends nothing and stores no
+            feedback. Share your suggestions in the conversation.
+          </p>
+          <p>
+            <a href="README.md">Documentation index</a> ·
+            <a href="diagrams/architecture.html">Detailed architecture diagram</a> ·
+            <a href="decisions/README.md">Decisions and open choices</a>
+          </p>
+        </section>
+        <footer>
+          UrbanFlow · Project guide and proposed repository layout · 25 September 2026<br />The
+          current Markdown documents govern architecture decisions. The proposed folder layout has
+          not been implemented. This page works offline without external assets or scripts.
+        </footer>
+      </main>
+    </div>
+  </body>
 </html>

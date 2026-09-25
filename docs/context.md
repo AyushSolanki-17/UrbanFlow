@@ -2,7 +2,7 @@
 
 [Documentation index](README.md)
 
-**Baseline updated: 2026-09-24. Implementation has not started.** Read this page before proposing work; then read the relevant contract, architecture page, and roadmap milestone. Documentation describes intended behavior until code and recorded runs demonstrate it.
+**Baseline updated: 2026-09-25. Application implementation has not started.** Repository quality tooling, pre-commit hooks, CI configuration and project skills now exist; see [contributor setup](../CONTRIBUTING.md) and [agent instructions](../AGENTS.md). Read this page before proposing work; then read the relevant contract, architecture page, and roadmap milestone. Documentation describes intended behavior until code and recorded runs demonstrate it.
 
 ## What we are building
 

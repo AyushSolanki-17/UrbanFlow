@@ -8,14 +8,14 @@ The local machine is the development and failure-testing laboratory. Do not assu
 
 ## Proposed profiles
 
-| Profile | Services/workloads | Purpose |
-| --- | --- | --- |
-| Foundation | MinIO, selected Iceberg catalog, Trino, selected ingestion/table writer; metadata DB if needed | First Bronze → Silver → Gold query path |
-| Streaming | Shared storage/catalog plus Kafka, registry, Flink and replay producer; query engine only for verification, Redis with current-state serving | Event-time processing and recovery |
-| Batch | Storage/catalog plus Spark; dbt and Trino for Gold modelling, Airflow with scheduling | Transformations, backfills, feature generation |
-| Product | Next.js and validated exports first; FastAPI/query/cache services, inference and agent when needed | Dashboard and API development |
-| Observability | Prometheus, Grafana, OpenTelemetry Collector; Loki and trace backend as introduced | Instrumentation and diagnosis |
-| ML | Feature access, training runtime, MLflow, artifact storage, inference | Reproducible experiments and serving |
+| Profile       | Services/workloads                                                                                                                           | Purpose                                        |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| Foundation    | MinIO, selected Iceberg catalog, Trino, selected ingestion/table writer; metadata DB if needed                                               | First Bronze → Silver → Gold query path        |
+| Streaming     | Shared storage/catalog plus Kafka, registry, Flink and replay producer; query engine only for verification, Redis with current-state serving | Event-time processing and recovery             |
+| Batch         | Storage/catalog plus Spark; dbt and Trino for Gold modelling, Airflow with scheduling                                                        | Transformations, backfills, feature generation |
+| Product       | Next.js and validated exports first; FastAPI/query/cache services, inference and agent when needed                                           | Dashboard and API development                  |
+| Observability | Prometheus, Grafana, OpenTelemetry Collector; Loki and trace backend as introduced                                                           | Instrumentation and diagnosis                  |
+| ML            | Feature access, training runtime, MLflow, artifact storage, inference                                                                        | Reproducible experiments and serving           |
 
 These are logical groupings, not committed profile names. Shared dependencies should be reused rather than duplicated. NiFi is introduced with source-flow needs; do not make every ingestion experiment depend on the full target stack.
 

@@ -1,895 +1,2484 @@
 <!doctype html>
 <html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>UrbanFlow — Architecture Review</title>
-<style>
-:root{
-  --ground:#EDEFF2; --paper:#FFFFFF; --ink:#14181D; --slate:#5A6572;
-  --rule:#C7CDD4; --rule-soft:#DDE2E7;
-  --batch:#0039A6; --stream:#E2540E; --serve:#9A7400; --risk:#D0201A;
-  --dim:0.16;
-  --f-sans:"Helvetica Neue",Helvetica,Inter,"Segoe UI",system-ui,sans-serif;
-  --f-mono:"SF Mono",ui-monospace,Menlo,Consolas,monospace;
-}
-@media (prefers-color-scheme: dark){
-  :root{
-    --ground:#12161B; --paper:#1A2027; --ink:#E7EBEF; --slate:#93A0AD;
-    --rule:#2F3841; --rule-soft:#242C34;
-    --batch:#5E96F0; --stream:#FF8A4C; --serve:#DBB33C; --risk:#FF6A61;
-    --dim:0.2;
-  }
-}
-*{box-sizing:border-box}
-html{-webkit-text-size-adjust:100%}
-body{
-  margin:0; background:var(--ground); color:var(--ink);
-  font:400 16px/1.55 var(--f-sans);
-  letter-spacing:-0.006em;
-}
-.wrap{max-width:1300px;margin:0 auto;padding:0 24px}
-h1,h2,h3,h4{margin:0;font-weight:700;letter-spacing:-0.02em;line-height:1.15}
-h1{font-size:44px}
-h2{font-size:31px;margin-bottom:6px}
-h3{font-size:20px}
-h4{font-size:16px}
-p{margin:0 0 14px;max-width:72ch}
-a{color:var(--batch)}
-code,.mono{font-family:var(--f-mono);font-size:0.88em}
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>UrbanFlow — Architecture Review</title>
+    <style>
+      :root {
+        --ground: #edeff2;
+        --paper: #ffffff;
+        --ink: #14181d;
+        --slate: #5a6572;
+        --rule: #c7cdd4;
+        --rule-soft: #dde2e7;
+        --batch: #0039a6;
+        --stream: #e2540e;
+        --serve: #9a7400;
+        --risk: #d0201a;
+        --dim: 0.16;
+        --f-sans: "Helvetica Neue", Helvetica, Inter, "Segoe UI", system-ui, sans-serif;
+        --f-mono: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --ground: #12161b;
+          --paper: #1a2027;
+          --ink: #e7ebef;
+          --slate: #93a0ad;
+          --rule: #2f3841;
+          --rule-soft: #242c34;
+          --batch: #5e96f0;
+          --stream: #ff8a4c;
+          --serve: #dbb33c;
+          --risk: #ff6a61;
+          --dim: 0.2;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        -webkit-text-size-adjust: 100%;
+      }
+      body {
+        margin: 0;
+        background: var(--ground);
+        color: var(--ink);
+        font: 400 16px/1.55 var(--f-sans);
+        letter-spacing: -0.006em;
+      }
+      .wrap {
+        max-width: 1300px;
+        margin: 0 auto;
+        padding: 0 24px;
+      }
+      h1,
+      h2,
+      h3,
+      h4 {
+        margin: 0;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        line-height: 1.15;
+      }
+      h1 {
+        font-size: 44px;
+      }
+      h2 {
+        font-size: 31px;
+        margin-bottom: 6px;
+      }
+      h3 {
+        font-size: 20px;
+      }
+      h4 {
+        font-size: 16px;
+      }
+      p {
+        margin: 0 0 14px;
+        max-width: 72ch;
+      }
+      a {
+        color: var(--batch);
+      }
+      code,
+      .mono {
+        font-family: var(--f-mono);
+        font-size: 0.88em;
+      }
 
-/* ── masthead ─────────────────────────────────────────── */
-.masthead{border-bottom:3px solid var(--ink);background:var(--paper)}
-.masthead .wrap{padding-top:34px;padding-bottom:26px}
-.mast-grid{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:32px;align-items:end}
-.mast-sub{font-size:20px;color:var(--slate);margin:10px 0 0;max-width:60ch;letter-spacing:-0.01em}
-.facts{display:flex;gap:0;border:1px solid var(--rule);background:var(--ground)}
-.fact{padding:10px 16px;border-right:1px solid var(--rule)}
-.fact:last-child{border-right:0}
-.fact b{display:block;font-size:20px;line-height:1.2}
-.fact span{display:block;font-size:12px;color:var(--slate);margin-top:2px}
+      /* ── masthead ─────────────────────────────────────────── */
+      .masthead {
+        border-bottom: 3px solid var(--ink);
+        background: var(--paper);
+      }
+      .masthead .wrap {
+        padding-top: 34px;
+        padding-bottom: 26px;
+      }
+      .mast-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 32px;
+        align-items: end;
+      }
+      .mast-sub {
+        font-size: 20px;
+        color: var(--slate);
+        margin: 10px 0 0;
+        max-width: 60ch;
+        letter-spacing: -0.01em;
+      }
+      .facts {
+        display: flex;
+        gap: 0;
+        border: 1px solid var(--rule);
+        background: var(--ground);
+      }
+      .fact {
+        padding: 10px 16px;
+        border-right: 1px solid var(--rule);
+      }
+      .fact:last-child {
+        border-right: 0;
+      }
+      .fact b {
+        display: block;
+        font-size: 20px;
+        line-height: 1.2;
+      }
+      .fact span {
+        display: block;
+        font-size: 12px;
+        color: var(--slate);
+        margin-top: 2px;
+      }
 
-/* ── section frame ────────────────────────────────────── */
-section{padding:52px 0}
-section + section{border-top:1px solid var(--rule-soft)}
-.sec-head{margin-bottom:26px;max-width:74ch}
-.sec-head p{color:var(--slate);margin:8px 0 0}
+      /* ── section frame ────────────────────────────────────── */
+      section {
+        padding: 52px 0;
+      }
+      section + section {
+        border-top: 1px solid var(--rule-soft);
+      }
+      .sec-head {
+        margin-bottom: 26px;
+        max-width: 74ch;
+      }
+      .sec-head p {
+        color: var(--slate);
+        margin: 8px 0 0;
+      }
 
-/* ── map ──────────────────────────────────────────────── */
-.mapzone{background:var(--paper);border-top:1px solid var(--rule);border-bottom:1px solid var(--rule)}
-.mapzone .wrap{padding-top:22px;padding-bottom:22px}
-.maptools{display:flex;flex-wrap:wrap;gap:20px;align-items:center;justify-content:space-between;margin-bottom:12px}
-.filters{display:flex;gap:6px;flex-wrap:wrap}
-.filters button{
-  font:500 13px/1 var(--f-sans);color:var(--ink);background:transparent;
-  border:1px solid var(--rule);padding:8px 13px;cursor:pointer;border-radius:999px;
-}
-.filters button[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
-.filters button:focus-visible{outline:2px solid var(--batch);outline-offset:2px}
-.legend{display:flex;gap:18px;flex-wrap:wrap;font-size:13px;color:var(--slate);align-items:center}
-.legend i{display:inline-block;width:22px;height:4px;vertical-align:middle;margin-right:7px;border-radius:2px}
-svg.map{width:100%;height:auto;display:block;touch-action:manipulation}
-.mapscroll{overflow-x:auto}
-.hint{font-size:13px;color:var(--slate);margin:10px 0 0}
+      /* ── map ──────────────────────────────────────────────── */
+      .mapzone {
+        background: var(--paper);
+        border-top: 1px solid var(--rule);
+        border-bottom: 1px solid var(--rule);
+      }
+      .mapzone .wrap {
+        padding-top: 22px;
+        padding-bottom: 22px;
+      }
+      .maptools {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 20px;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 12px;
+      }
+      .filters {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+      }
+      .filters button {
+        font: 500 13px/1 var(--f-sans);
+        color: var(--ink);
+        background: transparent;
+        border: 1px solid var(--rule);
+        padding: 8px 13px;
+        cursor: pointer;
+        border-radius: 999px;
+      }
+      .filters button[aria-pressed="true"] {
+        background: var(--ink);
+        color: var(--paper);
+        border-color: var(--ink);
+      }
+      .filters button:focus-visible {
+        outline: 2px solid var(--batch);
+        outline-offset: 2px;
+      }
+      .legend {
+        display: flex;
+        gap: 18px;
+        flex-wrap: wrap;
+        font-size: 13px;
+        color: var(--slate);
+        align-items: center;
+      }
+      .legend i {
+        display: inline-block;
+        width: 22px;
+        height: 4px;
+        vertical-align: middle;
+        margin-right: 7px;
+        border-radius: 2px;
+      }
+      svg.map {
+        width: 100%;
+        height: auto;
+        display: block;
+        touch-action: manipulation;
+      }
+      .mapscroll {
+        overflow-x: auto;
+      }
+      .hint {
+        font-size: 13px;
+        color: var(--slate);
+        margin: 10px 0 0;
+      }
 
-/* svg styling */
-.line{fill:none;stroke-width:6;stroke-linecap:round;stroke-linejoin:round}
-.line.batch{stroke:var(--batch)} .line.stream{stroke:var(--stream)} .line.serve{stroke:var(--serve)}
-.line.feed{stroke-width:3;stroke-dasharray:1 8;stroke-linecap:round;stroke:var(--slate)}
-.stn{cursor:pointer}
-.stn .dot{fill:var(--paper);stroke-width:4}
-.stn.batch .dot{stroke:var(--batch)} .stn.stream .dot{stroke:var(--stream)}
-.stn.serve .dot{stroke:var(--serve)} .stn.cross .dot{stroke:var(--ink)}
-.stn .nm{font:700 13.5px var(--f-sans);fill:var(--ink);letter-spacing:-0.01em}
-.stn .sb,.caption{font:400 11.5px var(--f-mono);fill:var(--slate)}
-.stn:hover .dot{fill:var(--ink)}
-.stn:focus{outline:none}
-.stn:focus-visible .halo,.stn.sel .halo{opacity:1}
-.halo{opacity:0;fill:none;stroke:var(--ink);stroke-width:2}
-.stn.sel .dot{fill:var(--ink)}
-.stn.off{opacity:var(--dim)}
-.off{opacity:var(--dim)}
-.band{fill:none;stroke:var(--ink);stroke-width:1.5;stroke-dasharray:6 5}
-.bandlbl{font:700 12.5px var(--f-sans);fill:var(--ink)}
-.tier{stroke:var(--slate);stroke-width:1.5;stroke-dasharray:3 6}
-.tierlbl{font:400 11.5px var(--f-mono);fill:var(--slate)}
-.grouplbl{font:700 11.5px var(--f-sans);fill:var(--slate);letter-spacing:0.04em}
-.term{stroke-width:5;stroke-linecap:butt}
-.term.batch{stroke:var(--batch)}
+      /* svg styling */
+      .line {
+        fill: none;
+        stroke-width: 6;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      .line.batch {
+        stroke: var(--batch);
+      }
+      .line.stream {
+        stroke: var(--stream);
+      }
+      .line.serve {
+        stroke: var(--serve);
+      }
+      .line.feed {
+        stroke-width: 3;
+        stroke-dasharray: 1 8;
+        stroke-linecap: round;
+        stroke: var(--slate);
+      }
+      .stn {
+        cursor: pointer;
+      }
+      .stn .dot {
+        fill: var(--paper);
+        stroke-width: 4;
+      }
+      .stn.batch .dot {
+        stroke: var(--batch);
+      }
+      .stn.stream .dot {
+        stroke: var(--stream);
+      }
+      .stn.serve .dot {
+        stroke: var(--serve);
+      }
+      .stn.cross .dot {
+        stroke: var(--ink);
+      }
+      .stn .nm {
+        font: 700 13.5px var(--f-sans);
+        fill: var(--ink);
+        letter-spacing: -0.01em;
+      }
+      .stn .sb,
+      .caption {
+        font: 400 11.5px var(--f-mono);
+        fill: var(--slate);
+      }
+      .stn:hover .dot {
+        fill: var(--ink);
+      }
+      .stn:focus {
+        outline: none;
+      }
+      .stn:focus-visible .halo,
+      .stn.sel .halo {
+        opacity: 1;
+      }
+      .halo {
+        opacity: 0;
+        fill: none;
+        stroke: var(--ink);
+        stroke-width: 2;
+      }
+      .stn.sel .dot {
+        fill: var(--ink);
+      }
+      .stn.off {
+        opacity: var(--dim);
+      }
+      .off {
+        opacity: var(--dim);
+      }
+      .band {
+        fill: none;
+        stroke: var(--ink);
+        stroke-width: 1.5;
+        stroke-dasharray: 6 5;
+      }
+      .bandlbl {
+        font: 700 12.5px var(--f-sans);
+        fill: var(--ink);
+      }
+      .tier {
+        stroke: var(--slate);
+        stroke-width: 1.5;
+        stroke-dasharray: 3 6;
+      }
+      .tierlbl {
+        font: 400 11.5px var(--f-mono);
+        fill: var(--slate);
+      }
+      .grouplbl {
+        font: 700 11.5px var(--f-sans);
+        fill: var(--slate);
+        letter-spacing: 0.04em;
+      }
+      .term {
+        stroke-width: 5;
+        stroke-linecap: butt;
+      }
+      .term.batch {
+        stroke: var(--batch);
+      }
 
-/* ── detail panel ─────────────────────────────────────── */
-.panel{
-  position:fixed;top:0;right:0;height:100dvh;width:min(430px,92vw);
-  background:var(--paper);border-left:1px solid var(--rule);
-  transform:translateX(102%);transition:transform .22s ease;
-  z-index:40;overflow-y:auto;box-shadow:-18px 0 42px rgba(0,0,0,.12);
-}
-.panel.open{transform:none}
-@media (prefers-reduced-motion: reduce){ .panel{transition:none} }
-.panel-in{padding:24px 26px 60px}
-.panel .ptop{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;
-  position:sticky;top:0;background:var(--paper);padding:22px 26px 14px;margin:-24px -26px 18px;
-  border-bottom:1px solid var(--rule-soft)}
-.panel h3{font-size:25px}
-.panel .kind{font:400 12px var(--f-mono);color:var(--slate);margin-top:4px;display:block}
-.pclose{background:transparent;border:1px solid var(--rule);width:32px;height:32px;
-  cursor:pointer;color:var(--ink);font-size:17px;line-height:1;border-radius:999px;flex:none}
-.pclose:focus-visible{outline:2px solid var(--batch);outline-offset:2px}
-.pblock{margin-bottom:20px}
-.pblock h4{font-size:13px;color:var(--slate);margin-bottom:5px;font-weight:700}
-.pblock p{font-size:14.5px;margin:0}
-.pblock ul{margin:0;padding-left:18px;font-size:14.5px}
-.pblock li{margin-bottom:3px}
-.chips{display:flex;flex-wrap:wrap;gap:5px}
-.chip{font:500 12px var(--f-sans);border:1px solid var(--rule);padding:3px 9px;border-radius:999px;color:var(--slate)}
-.tag{display:inline-block;font:700 11px var(--f-sans);padding:3px 9px;border-radius:999px;color:var(--paper)}
-.tag.core{background:var(--batch)} .tag.support{background:var(--serve)}
-.tag.optional{background:var(--slate)} .tag.hist{background:var(--rule);color:var(--ink)}
-.scrim{position:fixed;inset:0;background:rgba(10,14,18,.35);opacity:0;pointer-events:none;
-  transition:opacity .22s ease;z-index:35}
-.scrim.on{opacity:1;pointer-events:auto}
-@media (max-width:820px){
-  svg.map{min-width:920px}
-  .panel{width:100%;height:82dvh;top:auto;bottom:0;border-left:0;border-top:2px solid var(--ink);
-    transform:translateY(102%)}
-  .panel.open{transform:none}
-}
+      /* ── detail panel ─────────────────────────────────────── */
+      .panel {
+        position: fixed;
+        top: 0;
+        right: 0;
+        height: 100dvh;
+        width: min(430px, 92vw);
+        background: var(--paper);
+        border-left: 1px solid var(--rule);
+        transform: translateX(102%);
+        transition: transform 0.22s ease;
+        z-index: 40;
+        overflow-y: auto;
+        box-shadow: -18px 0 42px rgba(0, 0, 0, 0.12);
+      }
+      .panel.open {
+        transform: none;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .panel {
+          transition: none;
+        }
+      }
+      .panel-in {
+        padding: 24px 26px 60px;
+      }
+      .panel .ptop {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 14px;
+        position: sticky;
+        top: 0;
+        background: var(--paper);
+        padding: 22px 26px 14px;
+        margin: -24px -26px 18px;
+        border-bottom: 1px solid var(--rule-soft);
+      }
+      .panel h3 {
+        font-size: 25px;
+      }
+      .panel .kind {
+        font: 400 12px var(--f-mono);
+        color: var(--slate);
+        margin-top: 4px;
+        display: block;
+      }
+      .pclose {
+        background: transparent;
+        border: 1px solid var(--rule);
+        width: 32px;
+        height: 32px;
+        cursor: pointer;
+        color: var(--ink);
+        font-size: 17px;
+        line-height: 1;
+        border-radius: 999px;
+        flex: none;
+      }
+      .pclose:focus-visible {
+        outline: 2px solid var(--batch);
+        outline-offset: 2px;
+      }
+      .pblock {
+        margin-bottom: 20px;
+      }
+      .pblock h4 {
+        font-size: 13px;
+        color: var(--slate);
+        margin-bottom: 5px;
+        font-weight: 700;
+      }
+      .pblock p {
+        font-size: 14.5px;
+        margin: 0;
+      }
+      .pblock ul {
+        margin: 0;
+        padding-left: 18px;
+        font-size: 14.5px;
+      }
+      .pblock li {
+        margin-bottom: 3px;
+      }
+      .chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 5px;
+      }
+      .chip {
+        font: 500 12px var(--f-sans);
+        border: 1px solid var(--rule);
+        padding: 3px 9px;
+        border-radius: 999px;
+        color: var(--slate);
+      }
+      .tag {
+        display: inline-block;
+        font: 700 11px var(--f-sans);
+        padding: 3px 9px;
+        border-radius: 999px;
+        color: var(--paper);
+      }
+      .tag.core {
+        background: var(--batch);
+      }
+      .tag.support {
+        background: var(--serve);
+      }
+      .tag.optional {
+        background: var(--slate);
+      }
+      .tag.hist {
+        background: var(--rule);
+        color: var(--ink);
+      }
+      .scrim {
+        position: fixed;
+        inset: 0;
+        background: rgba(10, 14, 18, 0.35);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.22s ease;
+        z-index: 35;
+      }
+      .scrim.on {
+        opacity: 1;
+        pointer-events: auto;
+      }
+      @media (max-width: 820px) {
+        svg.map {
+          min-width: 920px;
+        }
+        .panel {
+          width: 100%;
+          height: 82dvh;
+          top: auto;
+          bottom: 0;
+          border-left: 0;
+          border-top: 2px solid var(--ink);
+          transform: translateY(102%);
+        }
+        .panel.open {
+          transform: none;
+        }
+      }
 
-/* ── tables ───────────────────────────────────────────── */
-.tablewrap{overflow-x:auto;border:1px solid var(--rule);background:var(--paper)}
-table{border-collapse:collapse;width:100%;min-width:580px;font-size:14.5px}
-th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--rule-soft);vertical-align:top}
-th{font-weight:700;font-size:13px;color:var(--slate);background:var(--ground);white-space:nowrap}
-tr:last-child td{border-bottom:0}
-td.num,th.num{text-align:right;font-family:var(--f-mono);font-size:13.5px;white-space:nowrap}
+      /* ── tables ───────────────────────────────────────────── */
+      .tablewrap {
+        overflow-x: auto;
+        border: 1px solid var(--rule);
+        background: var(--paper);
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        min-width: 580px;
+        font-size: 14.5px;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 10px 14px;
+        border-bottom: 1px solid var(--rule-soft);
+        vertical-align: top;
+      }
+      th {
+        font-weight: 700;
+        font-size: 13px;
+        color: var(--slate);
+        background: var(--ground);
+        white-space: nowrap;
+      }
+      tr:last-child td {
+        border-bottom: 0;
+      }
+      td.num,
+      th.num {
+        text-align: right;
+        font-family: var(--f-mono);
+        font-size: 13.5px;
+        white-space: nowrap;
+      }
 
-/* ── columns ──────────────────────────────────────────── */
-.cols{display:grid;gap:22px}
-.c2{grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
-.c3{grid-template-columns:repeat(auto-fit,minmax(250px,1fr))}
-.c4{grid-template-columns:repeat(auto-fit,minmax(215px,1fr))}
-.block{background:var(--paper);border:1px solid var(--rule);padding:18px 20px}
-.block h4{margin-bottom:8px}
-.block ul{margin:0;padding-left:17px;font-size:14.5px;color:var(--slate)}
-.block li{margin-bottom:3px}
-.block li b{color:var(--ink);font-weight:600}
+      /* ── columns ──────────────────────────────────────────── */
+      .cols {
+        display: grid;
+        gap: 22px;
+      }
+      .c2 {
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      }
+      .c3 {
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      }
+      .c4 {
+        grid-template-columns: repeat(auto-fit, minmax(215px, 1fr));
+      }
+      .block {
+        background: var(--paper);
+        border: 1px solid var(--rule);
+        padding: 18px 20px;
+      }
+      .block h4 {
+        margin-bottom: 8px;
+      }
+      .block ul {
+        margin: 0;
+        padding-left: 17px;
+        font-size: 14.5px;
+        color: var(--slate);
+      }
+      .block li {
+        margin-bottom: 3px;
+      }
+      .block li b {
+        color: var(--ink);
+        font-weight: 600;
+      }
 
-/* ── journey ──────────────────────────────────────────── */
-.journey{counter-reset:stop;border-left:3px solid var(--batch);padding-left:0;margin:0;list-style:none;max-width:900px}
-.journey.rt{border-left-color:var(--stream)}
-.journey li{counter-increment:stop;position:relative;padding:0 0 18px 34px;margin-left:-2px}
-.journey li::before{
-  content:counter(stop);position:absolute;left:-13px;top:0;
-  width:24px;height:24px;border-radius:999px;background:var(--paper);
-  border:3px solid var(--batch);color:var(--ink);
-  font:700 11px/19px var(--f-sans);text-align:center;
-}
-.journey.rt li::before{border-color:var(--stream)}
-.journey .what{font-weight:600}
-.journey .how{color:var(--slate);font-size:14.5px;display:block;font-family:var(--f-mono);font-size:13px}
+      /* ── journey ──────────────────────────────────────────── */
+      .journey {
+        counter-reset: stop;
+        border-left: 3px solid var(--batch);
+        padding-left: 0;
+        margin: 0;
+        list-style: none;
+        max-width: 900px;
+      }
+      .journey.rt {
+        border-left-color: var(--stream);
+      }
+      .journey li {
+        counter-increment: stop;
+        position: relative;
+        padding: 0 0 18px 34px;
+        margin-left: -2px;
+      }
+      .journey li::before {
+        content: counter(stop);
+        position: absolute;
+        left: -13px;
+        top: 0;
+        width: 24px;
+        height: 24px;
+        border-radius: 999px;
+        background: var(--paper);
+        border: 3px solid var(--batch);
+        color: var(--ink);
+        font: 700 11px/19px var(--f-sans);
+        text-align: center;
+      }
+      .journey.rt li::before {
+        border-color: var(--stream);
+      }
+      .journey .what {
+        font-weight: 600;
+      }
+      .journey .how {
+        color: var(--slate);
+        font-size: 14.5px;
+        display: block;
+        font-family: var(--f-mono);
+        font-size: 13px;
+      }
 
-/* ── roadmap ──────────────────────────────────────────── */
-.phase{background:var(--paper);border:1px solid var(--rule);border-top:4px solid var(--batch);padding:18px 20px}
-.phase.p2{border-top-color:var(--stream)} .phase.p3{border-top-color:var(--serve)}
-.phase.p4{border-top-color:var(--slate)} .phase.p5{border-top-color:var(--ink)}
-.phase .when{font:400 12px var(--f-mono);color:var(--slate);display:block;margin-bottom:3px}
-.phase h4{margin-bottom:10px}
-.phase ul{margin:0 0 12px;padding-left:17px;font-size:14.5px}
-.phase li{margin-bottom:3px}
-.exit{font-size:13.5px;border-top:1px solid var(--rule-soft);padding-top:10px;color:var(--slate)}
-.exit b{color:var(--ink)}
+      /* ── roadmap ──────────────────────────────────────────── */
+      .phase {
+        background: var(--paper);
+        border: 1px solid var(--rule);
+        border-top: 4px solid var(--batch);
+        padding: 18px 20px;
+      }
+      .phase.p2 {
+        border-top-color: var(--stream);
+      }
+      .phase.p3 {
+        border-top-color: var(--serve);
+      }
+      .phase.p4 {
+        border-top-color: var(--slate);
+      }
+      .phase.p5 {
+        border-top-color: var(--ink);
+      }
+      .phase .when {
+        font: 400 12px var(--f-mono);
+        color: var(--slate);
+        display: block;
+        margin-bottom: 3px;
+      }
+      .phase h4 {
+        margin-bottom: 10px;
+      }
+      .phase ul {
+        margin: 0 0 12px;
+        padding-left: 17px;
+        font-size: 14.5px;
+      }
+      .phase li {
+        margin-bottom: 3px;
+      }
+      .exit {
+        font-size: 13.5px;
+        border-top: 1px solid var(--rule-soft);
+        padding-top: 10px;
+        color: var(--slate);
+      }
+      .exit b {
+        color: var(--ink);
+      }
 
-/* ── findings ─────────────────────────────────────────── */
-.finding{background:var(--paper);border:1px solid var(--rule);border-left:5px solid var(--risk);
-  padding:18px 22px;margin-bottom:14px;max-width:1000px}
-.finding.high{border-left-color:var(--stream)}
-.finding.med{border-left-color:var(--serve)}
-.finding.note{border-left-color:var(--slate)}
-.fhead{display:flex;gap:12px;align-items:baseline;flex-wrap:wrap;margin-bottom:8px}
-.sev{font:700 11px var(--f-sans);color:var(--paper);background:var(--risk);padding:3px 9px;border-radius:999px;white-space:nowrap}
-.finding.high .sev{background:var(--stream)}
-.finding.med .sev{background:var(--serve)}
-.finding.note .sev{background:var(--slate)}
-.finding h4{font-size:17px}
-.finding p{font-size:14.5px;margin-bottom:10px}
-.fix{font-size:14.5px;background:var(--ground);border:1px solid var(--rule-soft);padding:11px 14px}
-.fix b{font-weight:700}
+      /* ── findings ─────────────────────────────────────────── */
+      .finding {
+        background: var(--paper);
+        border: 1px solid var(--rule);
+        border-left: 5px solid var(--risk);
+        padding: 18px 22px;
+        margin-bottom: 14px;
+        max-width: 1000px;
+      }
+      .finding.high {
+        border-left-color: var(--stream);
+      }
+      .finding.med {
+        border-left-color: var(--serve);
+      }
+      .finding.note {
+        border-left-color: var(--slate);
+      }
+      .fhead {
+        display: flex;
+        gap: 12px;
+        align-items: baseline;
+        flex-wrap: wrap;
+        margin-bottom: 8px;
+      }
+      .sev {
+        font: 700 11px var(--f-sans);
+        color: var(--paper);
+        background: var(--risk);
+        padding: 3px 9px;
+        border-radius: 999px;
+        white-space: nowrap;
+      }
+      .finding.high .sev {
+        background: var(--stream);
+      }
+      .finding.med .sev {
+        background: var(--serve);
+      }
+      .finding.note .sev {
+        background: var(--slate);
+      }
+      .finding h4 {
+        font-size: 17px;
+      }
+      .finding p {
+        font-size: 14.5px;
+        margin-bottom: 10px;
+      }
+      .fix {
+        font-size: 14.5px;
+        background: var(--ground);
+        border: 1px solid var(--rule-soft);
+        padding: 11px 14px;
+      }
+      .fix b {
+        font-weight: 700;
+      }
 
-.footnote{color:var(--slate);font-size:13.5px;max-width:74ch;margin-top:24px}
-@media (max-width:640px){
-  h1{font-size:31px} h2{font-size:25px}
-  .mast-grid{grid-template-columns:1fr}
-  .facts{flex-wrap:wrap}
-  .fact{flex:1 1 40%;border-bottom:1px solid var(--rule)}
-  .wrap{padding:0 16px}
-}
-</style>
-</head>
-<body>
-<header class="masthead">
-  <div class="wrap">
-    <div class="mast-grid">
-      <div>
-        <h1>UrbanFlow</h1>
-        <p class="mast-sub">Planned mobility lakehouse for historical and latest published data. Modular for expansion, with a bounded local deployment. No pipelines or benchmarks are implemented yet.</p>
-      </div>
-      <div class="facts">
-        <div class="fact"><b>20 GB</b><span>Peak local working-data cap</span></div>
-        <div class="fact"><b>16 GB</b><span>RAM on the build machine</span></div>
-        <div class="fact"><b>$0</b><span>Cloud infrastructure target</span></div>
-        <div class="fact"><b>Planned</b><span>Implementation status</span></div>
-      </div>
-    </div>
-  </div>
-</header>
-
-<nav class="wrap" style="padding-top:16px;padding-bottom:16px"><a href="../README.md">Documentation</a> · <a href="../context.md">Current context</a> · <a href="../architecture/data-lifecycle.md">Historical + latest data</a> · <a href="../architecture/ml-and-serving.md">ML + agent</a> · <a href="system-atlas.html">Earlier atlas</a></nav>
-<div class="mapzone">
-  <div class="wrap">
-    <div class="maptools">
-      <div class="filters" role="group" aria-label="Show parts of the pipeline">
-        <button data-f="all" aria-pressed="true">Everything</button>
-        <button data-f="batch" aria-pressed="false">Batch path</button>
-        <button data-f="stream" aria-pressed="false">Streaming path</button>
-        <button data-f="serve" aria-pressed="false">Serving</button>
-        <button data-f="cross" aria-pressed="false">Cross-cutting</button>
-      </div>
-      <div class="legend">
-        <span><i style="background:var(--batch)"></i>Batch</span>
-        <span><i style="background:var(--stream)"></i>Streaming</span>
-        <span><i style="background:var(--serve)"></i>Serving</span>
-        <span><i style="background:repeating-linear-gradient(90deg,var(--slate) 0 2px,transparent 2px 7px);height:3px;border-radius:0"></i>Historical replay feed</span>
-      </div>
-    </div>
-
-    <div class="mapscroll">
-    <svg class="map" viewBox="0 0 1250 680" role="img" aria-label="Pipeline diagram drawn as a transit map. Select a station for detail.">
-      <title>UrbanFlow pipeline</title>
-
-      <!-- group labels -->
-      <text class="grouplbl" x="95" y="58" text-anchor="middle">Sources</text>
-      <text class="grouplbl" x="130" y="424">Streaming path</text>
-      <text class="caption" x="130" y="443">historical records replayed as events</text>
-
-      <!-- tier divider -->
-      <line class="tier" x1="1085" y1="56" x2="1085" y2="524"/>
-      <text class="tierlbl" x="1075" y="70" text-anchor="end">tier 1, your mac</text>
-      <text class="tierlbl" x="1095" y="70">tier 2, public</text>
-
-      <!-- batch lines -->
-      <path class="line batch" data-line="batch" d="M95 105 H179 Q195 105 195 121 V164 Q195 180 211 180 H250"/>
-      <path class="line batch" data-line="batch" d="M95 180 H250"/>
-      <path class="line batch" data-line="batch" d="M95 255 H179 Q195 255 195 239 V196 Q195 180 211 180 H250"/>
-      <path class="line batch" data-line="batch" d="M250 180 H590"/>
-      <path class="line batch" data-line="batch" d="M590 180 H674 Q690 180 690 164 V116 Q690 100 706 100 H725"/>
-      <path class="line batch" data-line="batch" d="M590 180 H725"/>
-      <path class="line batch" data-line="batch" d="M590 180 H674 Q690 180 690 196 V244 Q690 260 706 260 H725"/>
-      <path class="line batch" data-line="batch" d="M725 100 H809 Q825 100 825 116 V124 Q825 140 841 140 H860"/>
-      <path class="line batch" data-line="batch" d="M725 180 H809 Q825 180 825 164 V156 Q825 140 841 140 H860"/>
-      <path class="line batch" data-line="batch" d="M860 140 H975"/>
-      <path class="line batch" data-line="batch" d="M725 260 H800"/>
-      <line class="term batch" data-line="batch" x1="800" y1="248" x2="800" y2="272"/>
-
-      <!-- serving lines -->
-      <path class="line serve" data-line="serve" d="M975 140 V430"/>
-      <path class="line serve" data-line="serve" d="M975 430 H1150"/>
-
-      <!-- streaming lines -->
-      <path class="line feed" data-line="stream" d="M465 189 V421"/>
-      <path class="line stream" data-line="stream" d="M465 430 H975"/>
-
-      <!-- cross-cutting band -->
-      <rect class="band" data-line="cross" x="60" y="548" width="1130" height="112" rx="10"/>
-      <text class="bandlbl" data-line="cross" x="78" y="572">Cross-cutting — touches every stage above</text>
-
-      <!-- stations -->
-      <g class="stn batch" data-id="tlc" tabindex="0" role="button" aria-label="NYC TLC trip records">
-        <circle class="halo" cx="95" cy="105" r="17"/><circle class="dot" cx="95" cy="105" r="9"/>
-        <text class="nm" x="95" y="131" text-anchor="middle">NYC TLC</text>
-        <text class="sb" x="95" y="146" text-anchor="middle">yellow + hvfhv</text>
-      </g>
-      <g class="stn batch" data-id="noaa" tabindex="0" role="button" aria-label="NOAA weather">
-        <circle class="halo" cx="95" cy="180" r="17"/><circle class="dot" cx="95" cy="180" r="9"/>
-        <text class="nm" x="95" y="206" text-anchor="middle">NOAA</text>
-        <text class="sb" x="95" y="221" text-anchor="middle">weather</text>
-      </g>
-      <g class="stn batch" data-id="census" tabindex="0" role="button" aria-label="US Census ACS">
-        <circle class="halo" cx="95" cy="255" r="17"/><circle class="dot" cx="95" cy="255" r="9"/>
-        <text class="nm" x="95" y="281" text-anchor="middle">Census</text>
-        <text class="sb" x="95" y="296" text-anchor="middle">optional crosswalk</text>
-      </g>
-      <g class="stn batch" data-id="ingest" tabindex="0" role="button" aria-label="Ingestion">
-        <circle class="halo" cx="250" cy="180" r="17"/><circle class="dot" cx="250" cy="180" r="9"/>
-        <text class="nm" x="250" y="206" text-anchor="middle">Ingestion</text>
-        <text class="sb" x="250" y="221" text-anchor="middle">python adapter</text>
-      </g>
-      <g class="stn batch" data-id="minio" tabindex="0" role="button" aria-label="MinIO object storage">
-        <circle class="halo" cx="350" cy="180" r="17"/><circle class="dot" cx="350" cy="180" r="9"/>
-        <text class="nm" x="350" y="206" text-anchor="middle">MinIO</text>
-        <text class="sb" x="350" y="221" text-anchor="middle">s3 api</text>
-      </g>
-      <g class="stn batch" data-id="parquet" tabindex="0" role="button" aria-label="Parquet file format">
-        <circle class="halo" cx="465" cy="180" r="17"/><circle class="dot" cx="465" cy="180" r="9"/>
-        <text class="nm" x="465" y="146" text-anchor="middle">Parquet</text>
-        <text class="sb" x="465" y="161" text-anchor="middle">columnar files</text>
-      </g>
-      <g class="stn batch" data-id="iceberg" tabindex="0" role="button" aria-label="Apache Iceberg table format">
-        <circle class="halo" cx="590" cy="180" r="21"/>
-        <circle class="dot" cx="590" cy="180" r="13"/>
-        <circle cx="590" cy="180" r="5" fill="var(--batch)"/>
-        <text class="nm" x="590" y="216" text-anchor="middle">Iceberg</text>
-        <text class="sb" x="590" y="231" text-anchor="middle">table + shared catalog</text>
-      </g>
-      <g class="stn batch" data-id="spark" tabindex="0" role="button" aria-label="Apache Spark">
-        <circle class="halo" cx="725" cy="100" r="17"/><circle class="dot" cx="725" cy="100" r="9"/>
-        <text class="nm" x="725" y="126" text-anchor="middle">Spark</text>
-        <text class="sb" x="725" y="141" text-anchor="middle">batch etl</text>
-      </g>
-      <g class="stn batch" data-id="trino" tabindex="0" role="button" aria-label="Trino">
-        <circle class="halo" cx="725" cy="180" r="17"/><circle class="dot" cx="725" cy="180" r="9"/>
-        <text class="nm" x="743" y="207">Trino</text>
-        <text class="sb" x="743" y="222">interactive sql</text>
-      </g>
-      <g class="stn batch" data-id="duckdb" tabindex="0" role="button" aria-label="DuckDB">
-        <circle class="halo" cx="725" cy="260" r="17"/><circle class="dot" cx="725" cy="260" r="9"/>
-        <text class="nm" x="725" y="286" text-anchor="middle">DuckDB</text>
-        <text class="sb" x="725" y="301" text-anchor="middle">local analysis</text>
-      </g>
-      <g class="stn batch" data-id="dbt" tabindex="0" role="button" aria-label="dbt">
-        <circle class="halo" cx="860" cy="140" r="17"/><circle class="dot" cx="860" cy="140" r="9"/>
-        <text class="nm" x="860" y="168" text-anchor="middle">dbt</text>
-        <text class="sb" x="860" y="183" text-anchor="middle">sql models</text>
-      </g>
-      <g class="stn batch" data-id="gold" tabindex="0" role="button" aria-label="Gold marts">
-        <circle class="halo" cx="975" cy="140" r="17"/><circle class="dot" cx="975" cy="140" r="9"/>
-        <text class="nm" x="975" y="120" text-anchor="middle">Gold marts</text>
-      </g>
-      <g class="stn serve" data-id="clickhouse" tabindex="0" role="button" aria-label="ClickHouse serving">
-        <circle class="halo" cx="975" cy="250" r="17"/><circle class="dot" cx="975" cy="250" r="9"/>
-        <text class="nm" x="955" y="246" text-anchor="end">ClickHouse</text>
-        <text class="sb" x="955" y="261" text-anchor="end">optional OLAP</text>
-      </g>
-      <g class="stn serve" data-id="export" tabindex="0" role="button" aria-label="Gold export to public tier">
-        <circle class="halo" cx="975" cy="430" r="17"/><circle class="dot" cx="975" cy="430" r="9"/>
-        <text class="nm" x="978" y="456" text-anchor="middle">Gold export</text>
-        <text class="sb" x="978" y="471" text-anchor="middle">bounded release</text>
-      </g>
-      <g class="stn serve" data-id="portal" tabindex="0" role="button" aria-label="Next.js public portal">
-        <circle class="halo" cx="1150" cy="430" r="17"/><circle class="dot" cx="1150" cy="430" r="9"/>
-        <text class="nm" x="1150" y="456" text-anchor="middle">Next.js portal</text>
-        <text class="sb" x="1150" y="471" text-anchor="middle">public demo</text>
-      </g>
-      <g class="stn stream" data-id="replay" tabindex="0" role="button" aria-label="Replay producer">
-        <circle class="halo" cx="465" cy="430" r="17"/><circle class="dot" cx="465" cy="430" r="9"/>
-        <text class="nm" x="465" y="456" text-anchor="middle">Replay producer</text>
-        <text class="sb" x="465" y="471" text-anchor="middle">simulated, not live</text>
-      </g>
-      <g class="stn stream" data-id="kafka" tabindex="0" role="button" aria-label="Apache Kafka">
-        <circle class="halo" cx="590" cy="430" r="17"/><circle class="dot" cx="590" cy="430" r="9"/>
-        <text class="nm" x="590" y="456" text-anchor="middle">Kafka</text>
-        <text class="sb" x="590" y="471" text-anchor="middle">event backbone</text>
-      </g>
-      <g class="stn stream" data-id="flink" tabindex="0" role="button" aria-label="Apache Flink">
-        <circle class="halo" cx="725" cy="430" r="17"/><circle class="dot" cx="725" cy="430" r="9"/>
-        <text class="nm" x="725" y="456" text-anchor="middle">Flink</text>
-        <text class="sb" x="725" y="471" text-anchor="middle">event-time windows</text>
-      </g>
-      <g class="stn stream" data-id="rt" tabindex="0" role="button" aria-label="Real-time Iceberg tables">
-        <circle class="halo" cx="850" cy="430" r="17"/><circle class="dot" cx="850" cy="430" r="9"/>
-        <text class="nm" x="850" y="456" text-anchor="middle">Realtime tables</text>
-        <text class="sb" x="850" y="471" text-anchor="middle">iceberg sink</text>
-      </g>
-      <g class="stn cross" data-id="airflow" tabindex="0" role="button" aria-label="Airflow orchestration">
-        <circle class="halo" cx="230" cy="600" r="17"/><circle class="dot" cx="230" cy="600" r="9"/>
-        <text class="nm" x="230" y="626" text-anchor="middle">Airflow</text>
-        <text class="sb" x="230" y="641" text-anchor="middle">orchestration</text>
-      </g>
-      <g class="stn cross" data-id="quality" tabindex="0" role="button" aria-label="Data quality">
-        <circle class="halo" cx="500" cy="600" r="17"/><circle class="dot" cx="500" cy="600" r="9"/>
-        <text class="nm" x="500" y="626" text-anchor="middle">Data quality</text>
-        <text class="sb" x="500" y="641" text-anchor="middle">rules, tests, quarantine</text>
-      </g>
-      <g class="stn cross" data-id="catalog" tabindex="0" role="button" aria-label="Lineage and discovery">
-        <circle class="halo" cx="760" cy="600" r="17"/><circle class="dot" cx="760" cy="600" r="9"/>
-        <text class="nm" x="760" y="626" text-anchor="middle">Lineage + discovery</text>
-        <text class="sb" x="760" y="641" text-anchor="middle">lineage manifests</text>
-      </g>
-      <g class="stn cross" data-id="obs" tabindex="0" role="button" aria-label="Observability">
-        <circle class="halo" cx="1010" cy="600" r="17"/><circle class="dot" cx="1010" cy="600" r="9"/>
-        <text class="nm" x="1010" y="626" text-anchor="middle">Observability</text>
-        <text class="sb" x="1010" y="641" text-anchor="middle">prometheus + grafana</text>
-      </g>
-    </svg>
-    </div>
-    <p class="hint">Select a station for its proposed role. Lines group logical responsibilities, not mandatory transport hops: storage, file format and table format coexist. ClickHouse and Census are optional; dbt is proposed for Stage 2. The required Iceberg catalog is distinct from optional lineage/discovery. Registry, Redis, FastAPI, ML and agent extensions are detailed in the linked platform docs. Cloud mappings are illustrative and unvalidated.</p>
-  </div>
-</div>
-
-<div class="scrim" id="scrim"></div>
-<aside class="panel" id="panel" role="dialog" aria-modal="true" inert aria-labelledby="pname" tabindex="-1">
-  <div class="panel-in">
-    <div class="ptop">
-      <div><h3 id="pname">—</h3><span class="kind" id="pkind"></span></div>
-      <button class="pclose" id="pclose" aria-label="Close station detail">&#215;</button>
-    </div>
-    <div id="pbody"></div>
-  </div>
-</aside>
-<main>
-
-<section id="purpose">
-  <div class="wrap">
-    <div class="sec-head">
-      <h2>What this platform is for</h2>
-      <p>The project exists to answer one question end to end: what physically happens to a single taxi trip as it travels from a public dataset to a number on a dashboard. Every tool on the map earns its place by solving one problem that the tool before it cannot.</p>
-    </div>
-    <div class="cols c3">
-      <div class="block">
-        <h4>The claim it makes</h4>
-        <ul>
-          <li>Production-shaped lakehouse over real public mobility data</li>
-          <li>Batch and streaming over the same records</li>
-          <li>Measured engineering decisions, not installed tools</li>
-          <li>Reliability tested by breaking it on purpose</li>
-        </ul>
-      </div>
-      <div class="block">
-        <h4>The claim it refuses to make</h4>
-        <ul>
-          <li>No petabyte or terabyte scale</li>
-          <li>No invented benchmark numbers — every figure comes from a run</li>
-          <li>No live NYC feed; the stream is a labelled replay</li>
-          <li>No always-on cloud cluster behind the demo</li>
-        </ul>
-      </div>
-      <div class="block">
-        <h4>The design rule</h4>
-        <p style="font-size:14.5px;color:var(--slate);margin:0">For every component, in order: what production problem does it solve, what physically happens, how is it measured, how does it fail, how does it recover. A component that cannot answer all five is cut.</p>
-      </div>
-    </div>
-  </div>
-</section>
-
-<section id="journey">
-  <div class="wrap">
-    <div class="sec-head">
-      <h2>One trip, all the way through</h2>
-      <p>The learning spine of the project. A hypothetical trip from zone 161 to zone 237, picked up at 18:31:42. Its project identity must follow the source contract; the example is not a real trace or a claim that TLC supplies a trip ID.</p>
-    </div>
-    <div class="cols c2">
-      <div>
-        <h3 style="margin-bottom:14px">Batch path</h3>
-        <ol class="journey">
-          <li><span class="what">Published by NYC TLC</span><span class="how">monthly parquet drop</span></li>
-          <li><span class="what">Downloaded by the ingestion job</span><span class="how">python adapter, checksum recorded</span></li>
-          <li><span class="what">Lands as an immutable object</span><span class="how">s3://urbanflow/raw/tlc/yellow/&lt;period&gt;/&lt;release&gt;/</span></li>
-          <li><span class="what">Becomes a row inside a row group</span><span class="how">parquet, compressed, column-addressable</span></li>
-          <li><span class="what">Registered as a data file in a snapshot</span><span class="how">iceberg manifest entry</span></li>
-          <li><span class="what">Read, cleaned, enriched by Spark</span><span class="how">bronze to silver, new parquet files</span></li>
-          <li><span class="what">Committed as a new snapshot</span><span class="how">older snapshot queryable while retained and supported</span></li>
-          <li><span class="what">Queried interactively by Trino</span><span class="how">partition pruning + predicate pushdown</span></li>
-          <li><span class="what">Aggregated away by dbt</span><span class="how">proposed Stage 2 dbt-trino; Stage 1 selected writer</span></li>
-          <li><span class="what">Served from a gold mart</span><span class="how">gold.zone_hour_demand</span></li>
-          <li><span class="what">Rendered on the portal</span><span class="how">versioned exported json first</span></li>
-        </ol>
-      </div>
-      <div>
-        <h3 style="margin-bottom:14px">Streaming path, same record</h3>
-        <ol class="journey rt">
-          <li><span class="what">Read back from historical parquet</span><span class="how">replay producer, rate-controlled</span></li>
-          <li><span class="what">Published with a partition key</span><span class="how">proposed key = (city, pickup_zone), topic mobility.yellow</span></li>
-          <li><span class="what">Given a partition and an offset</span><span class="how">illustrative partition/offset; configuration pending</span></li>
-          <li><span class="what">Consumed by Flink with event time</span><span class="how">watermark derived from pickup_timestamp</span></li>
-          <li><span class="what">Placed in a five-minute window</span><span class="how">state keyed by city, zone and replay scope</span></li>
-          <li><span class="what">Deduplicated, late arrivals handled</span><span class="how">allowed-lateness and too-late routing policy</span></li>
-          <li><span class="what">Checkpointed</span><span class="how">recovery point, not a result</span></li>
-          <li><span class="what">Emitted as a real-time aggregate</span><span class="how">trips per zone per five minutes</span></li>
-          <li><span class="what">Written to an Iceberg sink</span><span class="how">separate table from the batch path</span></li>
-        </ol>
-      </div>
-    </div>
-  </div>
-</section>
-
-<section id="model">
-  <div class="wrap">
-    <div class="sec-head">
-      <h2>The data model</h2>
-      <p>Proposed canonical tables match the data contracts. Bronze retains source fidelity, Silver validates and normalizes, Gold defines business grains. Census and additional marts remain optional.</p>
-    </div>
-    <div class="cols c3">
-      <div class="block">
-        <h4>Bronze — source shape</h4>
-        <ul>
-          <li><b>raw_yellow_trips</b> — source shape and release provenance</li>
-          <li><b>raw_weather</b></li>
-          <li><b>raw_events</b>, <b>raw_traffic</b> — later sources</li>
-        </ul>
-        <p style="font-size:13.5px;color:var(--slate);margin:10px 0 0">Preserve source-release bytes and provenance. Corrections create a new release; validation and normalization occur downstream. Retention remains explicit.</p>
-      </div>
-      <div class="block">
-        <h4>Silver — cleaned and joined</h4>
-        <ul>
-          <li><b>clean_trips</b> — validated rows; rejected rows retain quarantine evidence</li>
-          <li><b>normalized_events</b>, <b>normalized_traffic</b></li>
-          <li><b>normalized_weather</b></li>
-          <li><b>geographic_reference</b></li>
-        </ul>
-        <p style="font-size:13.5px;color:var(--slate);margin:10px 0 0">Derived here: trip_duration_seconds, average_speed, valid-zone flag.</p>
-      </div>
-      <div class="block">
-        <h4>Gold — business answers</h4>
-        <ul>
-          <li><b>zone_hour_demand</b></li>
-          <li><b>zone_hour_features</b></li>
-          <li><b>forecasting_features</b></li>
-          <li><b>mobility_anomalies</b></li>
-          <li><b>model_predictions</b></li>
-        </ul>
-        <p style="font-size:13.5px;color:var(--slate);margin:10px 0 0">The initial portal reads validated Gold exports with version and freshness metadata. Later APIs can expose current state and model outputs.</p>
-      </div>
-    </div>
-  </div>
-</section>
-
-<section id="features">
-  <div class="wrap">
-    <div class="sec-head">
-      <h2>What the build has to demonstrate</h2>
-      <p>The feature list is written as behaviours to prove, not tools to install. Each row is something you can show working, and show failing.</p>
-    </div>
-    <div class="tablewrap">
-      <table>
-        <thead><tr><th>Component</th><th>Behaviours proven</th><th>Measured by</th></tr></thead>
-        <tbody>
-          <tr><td><b>Parquet</b></td><td>compression, column pruning, predicate pushdown, row-group sizing, file sizing</td><td>bytes scanned, file count, read time versus CSV</td></tr>
-          <tr><td><b>Iceberg</b></td><td>snapshots, time travel, schema evolution, partition evolution, rollback, concurrent writes, manifest structure</td><td>snapshot history, files touched per commit, query time before and after partitioning</td></tr>
-          <tr><td><b>Spark</b></td><td>partitions, stages, shuffle, broadcast versus sort-merge join, skew and salting, partition pruning, task retry</td><td>stage timings, shuffle bytes, straggler task duration, peak executor memory</td></tr>
-          <tr><td><b>Trino</b></td><td>distributed SQL, connector architecture, query planning, pushdown, distributed joins</td><td>wall time, splits generated, data scanned per query</td></tr>
-          <tr><td><b>DuckDB</b></td><td>single-node analytical SQL; selected Parquet/Iceberg access mode must be tested</td><td>latency against Trino and Spark on identical queries</td></tr>
-          <tr><td><b>Kafka</b></td><td>partitions, offsets, consumer groups, ordering guarantees, retention, replay, lag under load</td><td>events per second at which lag starts growing</td></tr>
-          <tr><td><b>Flink</b></td><td>event time versus processing time, watermarks, windows, keyed state, checkpointing, late events, delivery semantics</td><td>checkpoint duration, backpressure, late-event count, recovery time after kill</td></tr>
-          <tr><td><b>dbt</b></td><td>staging, intermediate and mart models, generic and custom tests, incremental models, docs and lineage</td><td>test pass rate, incremental run time versus full refresh</td></tr>
-          <tr><td><b>Airflow</b></td><td>DAG dependencies, retries, backfills, idempotency, scheduling</td><td>successful backfill of a past month with no duplicate rows</td></tr>
-          <tr><td><b>Data quality</b></td><td>nulls, duplicates, invalid values, schema violations, quarantine and dead-letter routing</td><td>share of deliberately injected bad records caught</td></tr>
-          <tr><td><b>Observability</b></td><td>throughput, latency, failure rate, consumer lag, freshness, quality metrics</td><td>a Grafana board that shows a broken pipeline before you notice by hand</td></tr>
-        </tbody>
-      </table>
-    </div>
-
-    <h3 style="margin:34px 0 12px">Failures worth engineering on purpose</h3>
-    <div class="cols c4">
-      <div class="block"><h4>Bad data</h4><ul><li>negative fare, negative distance</li><li>dropoff before pickup</li><li>zone_id that does not exist</li><li>duplicate trip_id</li><li>null timestamp</li></ul></div>
-      <div class="block"><h4>Bad files</h4><ul><li>bounded small-file fixture versus compacted files</li><li>then compact and re-measure</li></ul></div>
-      <div class="block"><h4>Bad distribution</h4><ul><li>synthetic hot-zone skew fixture</li><li>one Spark worker becomes a straggler</li><li>fix with salting or repartition</li></ul></div>
-      <div class="block"><h4>Bad luck</h4><ul><li>kill Kafka mid-stream</li><li>kill a Flink task manager</li><li>fail a Spark task</li><li>roll back a bad Iceberg snapshot</li></ul></div>
-    </div>
-  </div>
-</section>
-
-<section id="running"><div class="wrap"><div class="sec-head"><h2>Local profile, expandable system</h2><p>The local host has 16 GB RAM and a 512 GB SSD. Resource policies belong in deployment configuration, not business logic. Services run selectively; larger deployments can retain more history and scale workers through the same contracts.</p></div><div class="cols c2"><div class="block"><h4>Local admission budget</h4><ul><li>About 10 GB routine working data; 20 GB peak maximum</li><li>Count raw and curated copies, snapshots, Kafka logs, checkpoints, exports, telemetry and rewrite scratch</li><li>Track container images separately; aim for 100+ GB free SSD</li><li>Provisional 8–10 GB stack RAM; measure actual service use</li><li>Keep selected historical periods plus a recent window; pause new work if protected history and a refresh cannot fit</li></ul></div><div class="block"><h4>Configurable modules</h4><ul><li>Source discovery and adapters independent of transforms</li><li>Shared object storage and compatible Iceberg catalog</li><li>Finite batch/modelling jobs; separate Kafka/Flink runtime</li><li>Optional product, ML and observability profiles</li><li>Versioned API/export contracts; configurable endpoints, retention, concurrency and partitions</li></ul></div></div><p class="footnote">Start with 100–500 MB inputs; expand only after measuring storage amplification and peak scratch. Input size is not total working-set size. <a href="../architecture/local.md">Local design</a> · <a href="../architecture/platform.md#modularity-and-expansion">Expansion boundaries</a></p></div></section>
-<section id="lifecycle"><div class="wrap"><div class="sec-head"><h2>Historical and latest, together</h2><p>Frozen historical runs and ongoing latest-source refresh share adapters, manifests, validation and publication rules. Latest means the newest validated published release, not a live NYC feed.</p></div><ol class="journey"><li><span class="what">Discover and identify source releases</span><span class="how">period, version/checksum, publication time if known, observed time</span></li><li><span class="what">Admit a bounded run</span><span class="how">separate refresh/backfill queues, peak disk and memory checks</span></li><li><span class="what">Validate and reconcile</span><span class="how">unchanged release is a no-op; corrected periods replace or merge under explicit rules</span></li><li><span class="what">Publish a consistent release</span><span class="how">manifest pins table snapshots; conditional publication prevents stale jobs replacing newer releases</span></li><li><span class="what">Retain history deliberately</span><span class="how">protect experiment snapshots; scale storage/retention beyond local profile when needed</span></li></ol><p><a href="../architecture/data-lifecycle.md">Read correction, overlap, freshness and retention rules</a></p></div></section>
-<section id="roadmap"><div class="wrap"><div class="sec-head"><h2>Delivery sequence</h2><p>The original eight stages remain the canonical roadmap. The near-term engineering slice adds modelling, maintenance and a small export-backed portal. Every stage remains planned.</p></div><div class="cols c3"><div class="phase"><span class="when">Stage 1</span><h4>Data foundation</h4><p>Catalog/writer compatibility, historical slice, latest-release contract, Bronze/Silver/Gold and one reconciled query.</p></div><div class="phase"><span class="when">Stage 2</span><h4>Distributed processing</h4><p>Spark transforms, proposed dbt-trino Gold models, DuckDB comparisons, Airflow refresh/backfill and maintenance.</p></div><div class="phase"><span class="when">Stage 3</span><h4>Streaming</h4><p>Versioned contracts and registry, Kafka replay, Flink windows, separate rt tables, recovery reconciliation; Redis with live serving.</p></div><div class="phase"><span class="when">Stage 4</span><h4>Multi-source / multi-city</h4><p>Weather, events, traffic and later Chicago. Census remains optional; geography and availability are explicit.</p></div><div class="phase"><span class="when">Stage 5</span><h4>ML</h4><p>Temporal baselines, forecasts and anomaly evaluation, MLflow, versioned inference and rollback.</p></div><div class="phase"><span class="when">Stage 6</span><h4>Agent</h4><p>Authorized tools, bounded read-only SQL and evidence-grounded responses, with security evaluations.</p></div><div class="phase"><span class="when">Stage 7</span><h4>Production hardening</h4><p>Broader operational, security, load and failure evidence. Basic correctness and telemetry start in Stage 1.</p></div><div class="phase"><span class="when">Stage 8</span><h4>Public platform</h4><p>Integrate completed capabilities and measured reports. Architecture/engineering/data pages may ship earlier.</p></div></div><p class="footnote"><a href="../roadmap.md">Exit evidence and first implementation commits</a>. Optional cloud validation tests portability; it does not prove production capacity.</p></div></section>
-<section id="portal">
-  <div class="wrap">
-    <div class="sec-head">
-      <h2>The public portal</h2>
-      <p>The portal gives the platform a real consumer. Its value is not the charts — it is that a reader can inspect the architecture, the lineage and the measurements without cloning anything.</p>
-    </div>
-    <div class="tablewrap">
-      <table>
-        <thead><tr><th>Route</th><th>What it shows</th><th>Priority</th></tr></thead>
-        <tbody>
-          <tr><td class="mono">/architecture</td><td>This diagram, interactive, with the role and reasoning behind each component</td><td>First</td></tr>
-          <tr><td class="mono">/engineering</td><td>Benchmark results with methodology — engine comparison, partitioning, file sizing</td><td>First</td></tr>
-          <tr><td class="mono">/reliability</td><td>Failure scenarios and what the pipeline did about each one</td><td>First</td></tr>
-          <tr><td class="mono">/data-lineage</td><td>Column-level path from TLC file to gold metric</td><td>Second</td></tr>
-          <tr><td class="mono">/explorer</td><td>Filterable trip exploration by date, hour, borough, zone, payment, weather</td><td>Second</td></tr>
-          <tr><td class="mono">/demand</td><td>Trips by hour and zone, peak periods, demand heatmap</td><td>Second</td></tr>
-          <tr><td class="mono">/revenue</td><td>Revenue, average fare, fare distribution, payment mix</td><td>Third</td></tr>
-          <tr><td class="mono">/streaming</td><td>Replay metrics — events per second, consumer lag, late and invalid counts, last events. Labelled as a replay of historical records, every time.</td><td>Third</td></tr>
-          <tr><td class="mono">/data</td><td>Source transparency — which data is real, which is simulated, record counts, links to the publishers</td><td>Ships with the first page</td></tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
-</section>
-
-<section id="cloud">
-  <div class="wrap">
-    <div class="sec-head">
-      <h2>Two tiers, and the cloud mapping</h2>
-      <p>Local engineering and public serving are separate initial deployments. The full logical architecture can also move to a larger environment. These provider mappings are candidates, not validated equivalents or cost promises.</p>
-    </div>
-    <div class="cols c2">
-      <div class="tablewrap">
-        <table>
-          <thead><tr><th>Local</th><th>Illustrative candidate</th></tr></thead>
-          <tbody>
-            <tr><td>MinIO</td><td>S3 or GCS</td></tr>
-            <tr><td>Iceberg on MinIO</td><td>Iceberg on S3 with Glue or Polaris</td></tr>
-            <tr><td>Spark local</td><td>EMR or Databricks</td></tr>
-            <tr><td>Kafka in Docker</td><td>MSK or Confluent Cloud</td></tr>
-            <tr><td>Flink in Docker</td><td>Managed Flink</td></tr>
-            <tr><td>Airflow in Docker</td><td>MWAA or Astronomer</td></tr>
-            <tr><td>Trino in Docker</td><td>Starburst or managed Trino</td></tr>
-            <tr><td>ClickHouse in Docker</td><td>ClickHouse Cloud</td></tr>
-            <tr><td>Prometheus and Grafana</td><td>CloudWatch or managed Grafana</td></tr>
-            <tr><td>Optional discovery/lineage</td><td>Evaluate separately from Iceberg catalog</td></tr>
-          </tbody>
-        </table>
-      </div>
-      <div class="cols" style="gap:16px">
-        <div class="block">
-          <h4>Tier 1 — engineering environment</h4>
-          <p style="font-size:14.5px;color:var(--slate);margin:0">Your Mac. 10–20 GB of real data, the full lakehouse and streaming stack under Docker profiles. This is where the engineering happens and where every benchmark is produced.</p>
+      .footnote {
+        color: var(--slate);
+        font-size: 13.5px;
+        max-width: 74ch;
+        margin-top: 24px;
+      }
+      @media (max-width: 640px) {
+        h1 {
+          font-size: 31px;
+        }
+        h2 {
+          font-size: 25px;
+        }
+        .mast-grid {
+          grid-template-columns: 1fr;
+        }
+        .facts {
+          flex-wrap: wrap;
+        }
+        .fact {
+          flex: 1 1 40%;
+          border-bottom: 1px solid var(--rule);
+        }
+        .wrap {
+          padding: 0 16px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="masthead">
+      <div class="wrap">
+        <div class="mast-grid">
+          <div>
+            <h1>UrbanFlow</h1>
+            <p class="mast-sub">
+              Planned mobility lakehouse for historical and latest published data. Modular for
+              expansion, with a bounded local deployment. No pipelines or benchmarks are implemented
+              yet.
+            </p>
+          </div>
+          <div class="facts">
+            <div class="fact"><b>20 GB</b><span>Peak local working-data cap</span></div>
+            <div class="fact"><b>16 GB</b><span>RAM on the build machine</span></div>
+            <div class="fact"><b>$0</b><span>Cloud infrastructure target</span></div>
+            <div class="fact"><b>Planned</b><span>Implementation status</span></div>
+          </div>
         </div>
-        <div class="block">
-          <h4>Tier 2 — public serving</h4>
-          <p style="font-size:14.5px;color:var(--slate);margin:0">Bounded validated Gold exports, with payload size measured per page. Start with generated JSON read by a static Next.js build; add a small database only when a page genuinely needs to query rather than read.</p>
+      </div>
+    </header>
+
+    <nav class="wrap" style="padding-top: 16px; padding-bottom: 16px">
+      <a href="../README.md">Documentation</a> · <a href="../context.md">Current context</a> ·
+      <a href="../architecture/data-lifecycle.md">Historical + latest data</a> ·
+      <a href="../architecture/ml-and-serving.md">ML + agent</a> ·
+      <a href="system-atlas.html">Earlier atlas</a>
+    </nav>
+    <div class="mapzone">
+      <div class="wrap">
+        <div class="maptools">
+          <div class="filters" role="group" aria-label="Show parts of the pipeline">
+            <button data-f="all" aria-pressed="true">Everything</button>
+            <button data-f="batch" aria-pressed="false">Batch path</button>
+            <button data-f="stream" aria-pressed="false">Streaming path</button>
+            <button data-f="serve" aria-pressed="false">Serving</button>
+            <button data-f="cross" aria-pressed="false">Cross-cutting</button>
+          </div>
+          <div class="legend">
+            <span><i style="background: var(--batch)"></i>Batch</span>
+            <span><i style="background: var(--stream)"></i>Streaming</span>
+            <span><i style="background: var(--serve)"></i>Serving</span>
+            <span
+              ><i
+                style="
+                  background: repeating-linear-gradient(
+                    90deg,
+                    var(--slate) 0 2px,
+                    transparent 2px 7px
+                  );
+                  height: 3px;
+                  border-radius: 0;
+                "
+              ></i
+              >Historical replay feed</span
+            >
+          </div>
         </div>
-        <div class="block">
-          <h4>Expanded deployment reference</h4>
-          <p style="font-size:14.5px;color:var(--slate);margin:0">Storage, catalog, Kafka, Flink, Spark and Airflow can be deployed remotely when needed. Keep data/control services private, configure retention and capacity independently, and test migration and recovery.</p>
+
+        <div class="mapscroll">
+          <svg
+            class="map"
+            viewBox="0 0 1250 680"
+            role="img"
+            aria-label="Pipeline diagram drawn as a transit map. Select a station for detail."
+          >
+            <title>UrbanFlow pipeline</title>
+
+            <!-- group labels -->
+            <text class="grouplbl" x="95" y="58" text-anchor="middle">Sources</text>
+            <text class="grouplbl" x="130" y="424">Streaming path</text>
+            <text class="caption" x="130" y="443">historical records replayed as events</text>
+
+            <!-- tier divider -->
+            <line class="tier" x1="1085" y1="56" x2="1085" y2="524" />
+            <text class="tierlbl" x="1075" y="70" text-anchor="end">tier 1, your mac</text>
+            <text class="tierlbl" x="1095" y="70">tier 2, public</text>
+
+            <!-- batch lines -->
+            <path
+              class="line batch"
+              data-line="batch"
+              d="M95 105 H179 Q195 105 195 121 V164 Q195 180 211 180 H250"
+            />
+            <path class="line batch" data-line="batch" d="M95 180 H250" />
+            <path
+              class="line batch"
+              data-line="batch"
+              d="M95 255 H179 Q195 255 195 239 V196 Q195 180 211 180 H250"
+            />
+            <path class="line batch" data-line="batch" d="M250 180 H590" />
+            <path
+              class="line batch"
+              data-line="batch"
+              d="M590 180 H674 Q690 180 690 164 V116 Q690 100 706 100 H725"
+            />
+            <path class="line batch" data-line="batch" d="M590 180 H725" />
+            <path
+              class="line batch"
+              data-line="batch"
+              d="M590 180 H674 Q690 180 690 196 V244 Q690 260 706 260 H725"
+            />
+            <path
+              class="line batch"
+              data-line="batch"
+              d="M725 100 H809 Q825 100 825 116 V124 Q825 140 841 140 H860"
+            />
+            <path
+              class="line batch"
+              data-line="batch"
+              d="M725 180 H809 Q825 180 825 164 V156 Q825 140 841 140 H860"
+            />
+            <path class="line batch" data-line="batch" d="M860 140 H975" />
+            <path class="line batch" data-line="batch" d="M725 260 H800" />
+            <line class="term batch" data-line="batch" x1="800" y1="248" x2="800" y2="272" />
+
+            <!-- serving lines -->
+            <path class="line serve" data-line="serve" d="M975 140 V430" />
+            <path class="line serve" data-line="serve" d="M975 430 H1150" />
+
+            <!-- streaming lines -->
+            <path class="line feed" data-line="stream" d="M465 189 V421" />
+            <path class="line stream" data-line="stream" d="M465 430 H975" />
+
+            <!-- cross-cutting band -->
+            <rect class="band" data-line="cross" x="60" y="548" width="1130" height="112" rx="10" />
+            <text class="bandlbl" data-line="cross" x="78" y="572">
+              Cross-cutting — touches every stage above
+            </text>
+
+            <!-- stations -->
+            <g
+              class="stn batch"
+              data-id="tlc"
+              tabindex="0"
+              role="button"
+              aria-label="NYC TLC trip records"
+            >
+              <circle class="halo" cx="95" cy="105" r="17" />
+              <circle class="dot" cx="95" cy="105" r="9" />
+              <text class="nm" x="95" y="131" text-anchor="middle">NYC TLC</text>
+              <text class="sb" x="95" y="146" text-anchor="middle">yellow + hvfhv</text>
+            </g>
+            <g
+              class="stn batch"
+              data-id="noaa"
+              tabindex="0"
+              role="button"
+              aria-label="NOAA weather"
+            >
+              <circle class="halo" cx="95" cy="180" r="17" />
+              <circle class="dot" cx="95" cy="180" r="9" />
+              <text class="nm" x="95" y="206" text-anchor="middle">NOAA</text>
+              <text class="sb" x="95" y="221" text-anchor="middle">weather</text>
+            </g>
+            <g
+              class="stn batch"
+              data-id="census"
+              tabindex="0"
+              role="button"
+              aria-label="US Census ACS"
+            >
+              <circle class="halo" cx="95" cy="255" r="17" />
+              <circle class="dot" cx="95" cy="255" r="9" />
+              <text class="nm" x="95" y="281" text-anchor="middle">Census</text>
+              <text class="sb" x="95" y="296" text-anchor="middle">optional crosswalk</text>
+            </g>
+            <g class="stn batch" data-id="ingest" tabindex="0" role="button" aria-label="Ingestion">
+              <circle class="halo" cx="250" cy="180" r="17" />
+              <circle class="dot" cx="250" cy="180" r="9" />
+              <text class="nm" x="250" y="206" text-anchor="middle">Ingestion</text>
+              <text class="sb" x="250" y="221" text-anchor="middle">python adapter</text>
+            </g>
+            <g
+              class="stn batch"
+              data-id="minio"
+              tabindex="0"
+              role="button"
+              aria-label="MinIO object storage"
+            >
+              <circle class="halo" cx="350" cy="180" r="17" />
+              <circle class="dot" cx="350" cy="180" r="9" />
+              <text class="nm" x="350" y="206" text-anchor="middle">MinIO</text>
+              <text class="sb" x="350" y="221" text-anchor="middle">s3 api</text>
+            </g>
+            <g
+              class="stn batch"
+              data-id="parquet"
+              tabindex="0"
+              role="button"
+              aria-label="Parquet file format"
+            >
+              <circle class="halo" cx="465" cy="180" r="17" />
+              <circle class="dot" cx="465" cy="180" r="9" />
+              <text class="nm" x="465" y="146" text-anchor="middle">Parquet</text>
+              <text class="sb" x="465" y="161" text-anchor="middle">columnar files</text>
+            </g>
+            <g
+              class="stn batch"
+              data-id="iceberg"
+              tabindex="0"
+              role="button"
+              aria-label="Apache Iceberg table format"
+            >
+              <circle class="halo" cx="590" cy="180" r="21" />
+              <circle class="dot" cx="590" cy="180" r="13" />
+              <circle cx="590" cy="180" r="5" fill="var(--batch)" />
+              <text class="nm" x="590" y="216" text-anchor="middle">Iceberg</text>
+              <text class="sb" x="590" y="231" text-anchor="middle">table + shared catalog</text>
+            </g>
+            <g
+              class="stn batch"
+              data-id="spark"
+              tabindex="0"
+              role="button"
+              aria-label="Apache Spark"
+            >
+              <circle class="halo" cx="725" cy="100" r="17" />
+              <circle class="dot" cx="725" cy="100" r="9" />
+              <text class="nm" x="725" y="126" text-anchor="middle">Spark</text>
+              <text class="sb" x="725" y="141" text-anchor="middle">batch etl</text>
+            </g>
+            <g class="stn batch" data-id="trino" tabindex="0" role="button" aria-label="Trino">
+              <circle class="halo" cx="725" cy="180" r="17" />
+              <circle class="dot" cx="725" cy="180" r="9" />
+              <text class="nm" x="743" y="207">Trino</text>
+              <text class="sb" x="743" y="222">interactive sql</text>
+            </g>
+            <g class="stn batch" data-id="duckdb" tabindex="0" role="button" aria-label="DuckDB">
+              <circle class="halo" cx="725" cy="260" r="17" />
+              <circle class="dot" cx="725" cy="260" r="9" />
+              <text class="nm" x="725" y="286" text-anchor="middle">DuckDB</text>
+              <text class="sb" x="725" y="301" text-anchor="middle">local analysis</text>
+            </g>
+            <g class="stn batch" data-id="dbt" tabindex="0" role="button" aria-label="dbt">
+              <circle class="halo" cx="860" cy="140" r="17" />
+              <circle class="dot" cx="860" cy="140" r="9" />
+              <text class="nm" x="860" y="168" text-anchor="middle">dbt</text>
+              <text class="sb" x="860" y="183" text-anchor="middle">sql models</text>
+            </g>
+            <g class="stn batch" data-id="gold" tabindex="0" role="button" aria-label="Gold marts">
+              <circle class="halo" cx="975" cy="140" r="17" />
+              <circle class="dot" cx="975" cy="140" r="9" />
+              <text class="nm" x="975" y="120" text-anchor="middle">Gold marts</text>
+            </g>
+            <g
+              class="stn serve"
+              data-id="clickhouse"
+              tabindex="0"
+              role="button"
+              aria-label="ClickHouse serving"
+            >
+              <circle class="halo" cx="975" cy="250" r="17" />
+              <circle class="dot" cx="975" cy="250" r="9" />
+              <text class="nm" x="955" y="246" text-anchor="end">ClickHouse</text>
+              <text class="sb" x="955" y="261" text-anchor="end">optional OLAP</text>
+            </g>
+            <g
+              class="stn serve"
+              data-id="export"
+              tabindex="0"
+              role="button"
+              aria-label="Gold export to public tier"
+            >
+              <circle class="halo" cx="975" cy="430" r="17" />
+              <circle class="dot" cx="975" cy="430" r="9" />
+              <text class="nm" x="978" y="456" text-anchor="middle">Gold export</text>
+              <text class="sb" x="978" y="471" text-anchor="middle">bounded release</text>
+            </g>
+            <g
+              class="stn serve"
+              data-id="portal"
+              tabindex="0"
+              role="button"
+              aria-label="Next.js public portal"
+            >
+              <circle class="halo" cx="1150" cy="430" r="17" />
+              <circle class="dot" cx="1150" cy="430" r="9" />
+              <text class="nm" x="1150" y="456" text-anchor="middle">Next.js portal</text>
+              <text class="sb" x="1150" y="471" text-anchor="middle">public demo</text>
+            </g>
+            <g
+              class="stn stream"
+              data-id="replay"
+              tabindex="0"
+              role="button"
+              aria-label="Replay producer"
+            >
+              <circle class="halo" cx="465" cy="430" r="17" />
+              <circle class="dot" cx="465" cy="430" r="9" />
+              <text class="nm" x="465" y="456" text-anchor="middle">Replay producer</text>
+              <text class="sb" x="465" y="471" text-anchor="middle">simulated, not live</text>
+            </g>
+            <g
+              class="stn stream"
+              data-id="kafka"
+              tabindex="0"
+              role="button"
+              aria-label="Apache Kafka"
+            >
+              <circle class="halo" cx="590" cy="430" r="17" />
+              <circle class="dot" cx="590" cy="430" r="9" />
+              <text class="nm" x="590" y="456" text-anchor="middle">Kafka</text>
+              <text class="sb" x="590" y="471" text-anchor="middle">event backbone</text>
+            </g>
+            <g
+              class="stn stream"
+              data-id="flink"
+              tabindex="0"
+              role="button"
+              aria-label="Apache Flink"
+            >
+              <circle class="halo" cx="725" cy="430" r="17" />
+              <circle class="dot" cx="725" cy="430" r="9" />
+              <text class="nm" x="725" y="456" text-anchor="middle">Flink</text>
+              <text class="sb" x="725" y="471" text-anchor="middle">event-time windows</text>
+            </g>
+            <g
+              class="stn stream"
+              data-id="rt"
+              tabindex="0"
+              role="button"
+              aria-label="Real-time Iceberg tables"
+            >
+              <circle class="halo" cx="850" cy="430" r="17" />
+              <circle class="dot" cx="850" cy="430" r="9" />
+              <text class="nm" x="850" y="456" text-anchor="middle">Realtime tables</text>
+              <text class="sb" x="850" y="471" text-anchor="middle">iceberg sink</text>
+            </g>
+            <g
+              class="stn cross"
+              data-id="airflow"
+              tabindex="0"
+              role="button"
+              aria-label="Airflow orchestration"
+            >
+              <circle class="halo" cx="230" cy="600" r="17" />
+              <circle class="dot" cx="230" cy="600" r="9" />
+              <text class="nm" x="230" y="626" text-anchor="middle">Airflow</text>
+              <text class="sb" x="230" y="641" text-anchor="middle">orchestration</text>
+            </g>
+            <g
+              class="stn cross"
+              data-id="quality"
+              tabindex="0"
+              role="button"
+              aria-label="Data quality"
+            >
+              <circle class="halo" cx="500" cy="600" r="17" />
+              <circle class="dot" cx="500" cy="600" r="9" />
+              <text class="nm" x="500" y="626" text-anchor="middle">Data quality</text>
+              <text class="sb" x="500" y="641" text-anchor="middle">rules, tests, quarantine</text>
+            </g>
+            <g
+              class="stn cross"
+              data-id="catalog"
+              tabindex="0"
+              role="button"
+              aria-label="Lineage and discovery"
+            >
+              <circle class="halo" cx="760" cy="600" r="17" />
+              <circle class="dot" cx="760" cy="600" r="9" />
+              <text class="nm" x="760" y="626" text-anchor="middle">Lineage + discovery</text>
+              <text class="sb" x="760" y="641" text-anchor="middle">lineage manifests</text>
+            </g>
+            <g
+              class="stn cross"
+              data-id="obs"
+              tabindex="0"
+              role="button"
+              aria-label="Observability"
+            >
+              <circle class="halo" cx="1010" cy="600" r="17" />
+              <circle class="dot" cx="1010" cy="600" r="9" />
+              <text class="nm" x="1010" y="626" text-anchor="middle">Observability</text>
+              <text class="sb" x="1010" y="641" text-anchor="middle">prometheus + grafana</text>
+            </g>
+          </svg>
         </div>
+        <p class="hint">
+          Select a station for its proposed role. Lines group logical responsibilities, not
+          mandatory transport hops: storage, file format and table format coexist. ClickHouse and
+          Census are optional; dbt is proposed for Stage 2. The required Iceberg catalog is distinct
+          from optional lineage/discovery. Registry, Redis, FastAPI, ML and agent extensions are
+          detailed in the linked platform docs. Cloud mappings are illustrative and unvalidated.
+        </p>
       </div>
     </div>
-  </div>
-</section>
-<section id="review"><div class="wrap"><div class="sec-head"><h2>Architecture decision gates</h2><p>Findings from the supplied review are reconciled with the earlier design. These are requirements and proposed directions; implementation evidence is still pending.</p></div><div class="finding"><div class="fhead"><span class="sev">Planned</span><h4>Catalog compatibility</h4></div><p>Required before foundation implementation: choose a catalog product and writer using pinned Spark/Trino/Flink compatibility tests. REST is a candidate interface, not proof of universal support. Optional discovery/lineage tools do not replace this catalog.</p></div><div class="finding"><div class="fhead"><span class="sev">Planned</span><h4>Table ownership</h4></div><p>Spark owns Bronze-to-Silver; proposed dbt-trino owns Silver-to-Gold from Stage 2 after adapter/materialization tests. Flink owns separate rt tables. Stage 1 uses one temporary Gold writer and transfers ownership explicitly.</p></div><div class="finding"><div class="fhead"><span class="sev">Planned</span><h4>Latest releases and corrections</h4></div><p>Coordinate overlapping refresh/backfill runs. Record source revisions, replace or merge corrected periods safely, publish snapshot manifests and keep frozen experiments reproducible.</p></div><div class="finding"><div class="fhead"><span class="sev">Planned</span><h4>Maintenance and retention</h4></div><p>Define retention and pins with the first write. Budget rewrite headroom and test compaction before sustained streaming. Expiry/orphan cleanup must protect active writers, recovery and pinned experiments.</p></div><div class="finding"><div class="fhead"><span class="sev">Planned</span><h4>Benchmark fairness</h4></div><p>One engine at a time, comparable total resources, identical semantics and checked results. Separate startup and cache conditions. Warm series: one discarded warm-up, median/range of at least five runs. Report raw results and limitations.</p></div><div class="finding"><div class="fhead"><span class="sev">Planned</span><h4>Geography and deferred tools</h4></div><p>Keep weather observation geography explicit. Census needs a versioned crosswalk and measure-specific aggregation. Defer ClickHouse, OpenMetadata and additional ingestion frameworks until their workload justifies them.</p></div><div class="finding"><div class="fhead"><span class="sev">Planned</span><h4>Tests and evidence</h4></div><p>Code, contract and recovery tests accompany data checks. No benchmark, capacity, monthly cost or provider compatibility claim is established by these diagrams.</p></div><p><a href="../decisions/README.md">Decision register</a> · <a href="../decisions/source-reconciliation.md">Source reconciliation and out-of-scope material</a> · <a href="../operations/benchmarks.md">Benchmark protocol</a></p></div></section>
-</main>
 
-<footer style="border-top:3px solid var(--ink);background:var(--paper);padding:26px 0 44px">
-  <div class="wrap">
-    <p class="footnote" style="margin:0">Adapted from the supplied architecture-review.html and reconciled planning context on 2026-09-24. All capabilities are planned. Curated Markdown governs decisions; internal source files remain unchanged. No measured benchmark results exist yet.</p>
-  </div>
-</footer>
-<script>
-const STATIONS = {
-  tlc:{name:"NYC TLC trip records",kind:"Source",status:"core",
-    role:"The backbone dataset. Monthly yellow taxi trip records, plus the zone lookup and zone geometry.",
-    why:"Real, public, already published as Parquet, and it arrives in monthly increments — which gives the project natural batches and a natural backfill story.",
-    physical:"A Parquet file per month per taxi type, downloaded over HTTPS and never modified afterwards.",
-    demos:["Monthly incremental ingestion","Backfill of a past month","Schema drift between vintages"],
-    fail:"TLC states it does not guarantee the accuracy of records submitted by technology providers. That is why the quality layer is not artificial.",
-    cloud:"Same — a public HTTP source either way."},
-  noaa:{name:"NOAA weather",kind:"Source",status:"support",
-    role:"Hourly weather readings used to enrich trips.",
-    why:"Turns the project from trip processing into multi-source analysis, and gives dbt a real dimension to join.",
-    physical:"Selected observation records with station, time, availability and coverage metadata; sizes and access method must be measured.",
-    demos:["Time-based join against trips","Slowly changing dimension handling"],
-    fail:"Coverage is a handful of city stations, not per zone. Model it at city or borough level and say so.",
-    cloud:"Same public API."},
-  census:{name:"US Census ACS",kind:"Source",status:"optional",
-    role:"Demographic and economic attributes attached to geography.",
-    why:"Optional area-level context. It does not establish individual characteristics or causes of demand.",
-    physical:"A versioned geography crosswalk and measure-specific aggregation, selected in a separate spatial study.",
-    demos:["Dimension enrichment","Pulling a narrow slice of a very wide source"],
-    fail:"ACS geography is tracts and PUMAs, not TLC zones. An area-weighted spatial crosswalk is required and is a real piece of work.",
-    cloud:"Same public API."},
-  ingest:{name:"Ingestion",kind:"Layer — extract and load",status:"core",
-    role:"Parameterized source discovery, download, provenance and retry. NiFi/dlt remain later options if needed.",
-    why:"Start with a small adapter whose source discovery, manifests and retry behavior can be tested independently.",
-    physical:"Python adapter discovers historical and latest published releases, checks manifests, downloads immutable source bytes and records checksums.",
-    demos:["Incremental load","Idempotent re-run","Load state tracking"],
-    fail:"Partial download or a source schema change. Both should quarantine rather than land.",
-    cloud:"Same code; the destination becomes S3."},
-  minio:{name:"MinIO",kind:"Layer — object storage",status:"core",
-    role:"S3-compatible object storage. The place bytes live.",
-    why:"Local object storage provides the reference storage boundary. Cloud portability requires connector, identity and recovery testing.",
-    physical:"Buckets and prefixes: raw/tlc/yellow/2025/09/, processed/, checkpoints/. Raw is treated as an immutable source-of-truth copy.",
-    demos:["Object layout and prefix design","Raw zone immutability","S3 API compatibility"],
-    fail:"Test unavailable storage, interrupted uploads, disk pressure and metadata/data recovery. Local storage is not highly available.",
-    cloud:"Cloud object storage candidate; validate API/connector differences and migration."},
-  parquet:{name:"Parquet",kind:"Layer — file format",status:"core",
-    role:"How a set of rows is physically laid out inside one object.",
-    why:"Columnar layout makes column pruning and predicate pushdown possible, which is where most query speed comes from. This is the first place performance becomes measurable.",
-    physical:"Row groups, each holding column chunks with their own statistics. A reader can skip whole row groups using min and max values without decompressing them.",
-    demos:["CSV against Parquet on size and read time","Compression codecs","Column pruning","Predicate pushdown","Row-group and file sizing"],
-    fail:"Thousands of tiny files. Metadata overhead and file opens dominate, and query time collapses. Worth creating deliberately, then compacting.",
-    cloud:"Identical — the format does not care where it sits."},
-  iceberg:{name:"Apache Iceberg",kind:"Layer — table format",status:"core",
-    role:"Turns a directory of Parquet files into a table with a schema, a history and transactional commits.",
-    why:"This is the interchange of the whole architecture. Without it, Spark, Trino, Flink and dbt would each have to agree by convention on which files belong to which table. With it, they agree by reading the same metadata.",
-    physical:"A metadata file points at a snapshot; a snapshot points at manifest lists; manifests point at data files with per-file statistics. Writing does not modify files — it writes new ones and commits a new snapshot.",
-    demos:["Snapshots and time travel","Schema evolution","Partition evolution","Rollback after a bad write","Concurrent write conflicts","Manifest inspection"],
-    fail:"Unbounded snapshot retention fills the disk, and frequent small commits from a streaming sink fragment the table. Both need a scheduled maintenance job.",
-    cloud:"Iceberg on S3 with Glue, Polaris or a REST catalog."},
-  spark:{name:"Apache Spark",kind:"Compute — batch",status:"core",
-    role:"Distributed batch transformation. Reads Iceberg, writes Iceberg.",
-    why:"It is where the distributed-systems concepts become visible: partitions, shuffles, skew and recovery. Not because the data needs it at this size, but because the behaviour is what is being learned.",
-    physical:"A job splits into stages at shuffle boundaries; stages split into tasks, one per partition; tasks read files, transform, and write new Parquet, which is then committed as a snapshot.",
-    demos:["Partitions, stages and tasks","Shuffle behaviour","Broadcast against sort-merge joins","Skew and salting","Partition pruning","Task failure and retry","Execution plan reading"],
-    fail:"Inject bounded synthetic skew and task failure; compare output correctness and recovery under declared resources.",
-    cloud:"EMR or other Spark deployment candidates; dependencies and access must be validated."},
-  trino:{name:"Trino",kind:"Compute — interactive SQL",status:"core",
-    role:"Fast interactive SQL across Iceberg without moving data.",
-    why:"A different job from Spark. Spark is for transformation you schedule; Trino is for questions you ask now. Comparing the two on the same query is one of the more instructive things in the project.",
-    physical:"A coordinator plans the query and distributes splits to workers, which read Parquet directly from object storage and stream results back.",
-    demos:["Distributed query planning","Connector architecture","Predicate and partition pushdown","Distributed joins","Splits generated per query"],
-    fail:"A query that scans everything because the predicate could not be pushed down. Visible in bytes scanned, and fixable by partitioning.",
-    cloud:"Starburst, Athena or a managed Trino."},
-  duckdb:{name:"DuckDB",kind:"Compute — single node",status:"core",
-    role:"Single-process analytical SQL over Parquet and Iceberg, with no cluster at all.",
-    why:"A lightweight inspection tool and single-node comparison baseline. Results characterize the selected workload and machine.",
-    physical:"Read selected Parquet files or a tested Iceberg access path; disclose snapshot/access differences in comparisons.",
-    demos:["Latency against Trino and Spark on identical queries","The crossover point where distribution starts to win"],
-    fail:"Memory pressure once the working set outgrows the machine. That boundary is the finding, not the bug.",
-    cloud:"Runs anywhere, including inside the portal build step."},
-  dbt:{name:"dbt",kind:"Layer — transformation",status:"core",
-    role:"Proposed Stage 2 Silver-to-Gold SQL models through Trino; exact adapter and materializations must pass compatibility tests.",
-    why:"Proposed SQL model dependency, test and documentation layer; requires an adapter compatibility gate.",
-    physical:"Compiles models to SQL, runs them against Trino in dependency order, and records a manifest that describes the whole graph.",
-    demos:["Staging, intermediate and mart layering","Generic and custom tests","Incremental models","Documentation and lineage from the manifest"],
-    fail:"A failing test should stop the DAG rather than publish quietly. Wire dbt test as a gate, not a report.",
-    cloud:"dbt Cloud or the same dbt-core in CI."},
-  gold:{name:"Gold marts",kind:"Layer — serving model",status:"core",
-    role:"Defined-grain business aggregates and feature products behind versioned consumer contracts.",
-    why:"Stable grains and schemas decouple consumers from transformation internals while retaining snapshot and freshness provenance.",
-    physical:"Validated aggregates such as gold.zone_hour_demand, with explicit grain, source snapshots and publication metadata.",
-    demos:["Aggregation collapsing millions of rows into a servable table","The interface boundary between platform and consumer"],
-    fail:"Gold going stale without anyone noticing. Freshness is a monitored metric, not an assumption.",
-    cloud:"Unchanged."},
-  clickhouse:{name:"ClickHouse",kind:"Layer — OLAP serving",status:"optional",
-    role:"Deferred OLAP serving option, introduced only for measured query/concurrency needs.",
-    why:"Good lakehouse storage is not automatically good dashboard serving. If a page needs interactive filtering at speed, a serving database earns its place — and Trino against Iceberg versus ClickHouse is a legitimate benchmark.",
-    physical:"Gold tables loaded into a merge-tree engine optimised for the specific query shapes the dashboard issues.",
-    demos:["Serving latency against Trino on Iceberg","When a serving layer is worth its operational cost"],
-    fail:"Currently it has no load-bearing job — the portal reads exported JSON. Defer it until a page genuinely needs it.",
-    cloud:"ClickHouse Cloud."},
-  export:{name:"Gold export",kind:"Boundary — tier 1 to tier 2",status:"core",
-    role:"Initial boundary between engineering and public serving; larger deployments may use runtime APIs.",
-    why:"Bounded aggregates let the public demo operate independently of engineering services; actual hosting costs remain to be evaluated.",
-    physical:"Validated Gold snapshots become bounded versioned JSON payloads with coverage, freshness, lineage and checksums.",
-    demos:["Separating engineering environment from serving environment","Publishing a freshness timestamp the site displays"],
-    fail:"A failed export retains the prior complete release with its original freshness labels. Never publish a partially updated release.",
-    cloud:"Object storage plus a static host, or a small database when a page needs querying."},
-  portal:{name:"Next.js portal",kind:"Consumer",status:"support",
-    role:"The public face. Architecture, benchmarks, reliability results, lineage, and interactive exploration.",
-    why:"It gives the platform a real consumer, which is what turns a repository into something a reader can evaluate without cloning it.",
-    physical:"A static build reading exported JSON, with a database behind it only if a route genuinely needs live queries.",
-    demos:["An interactive architecture diagram","Benchmark results with methodology","Failure scenarios and outcomes","Source transparency"],
-    fail:"Scope. Nine routes is a second project. Ship architecture, engineering and data first.",
-    cloud:"Static hosting candidate; provider, storage, limits and costs are not selected."},
-  replay:{name:"Replay producer",kind:"Streaming — source",status:"core",
-    role:"Reads historical trip records and publishes them to Kafka at a controllable rate.",
-    why:"The selected TLC source is published historical data. Replay demonstrates event-time processing separately from latest-source refresh.",
-    physical:"Read frozen historical Parquet, preserve pickup_timestamp as event time and emit a versioned envelope at a configured rate.",
-    demos:["Rate control and load testing","Deliberate late, out-of-order and duplicate events","Finding the throughput where consumer lag starts to grow"],
-    fail:"Persist reproducible source position and run identity; restart may resend records. Reconcile deduplication and label all replay surfaces.",
-    cloud:"Same producer against MSK."},
-  kafka:{name:"Apache Kafka",kind:"Streaming — transport",status:"core",
-    role:"The event backbone. Durable, ordered per partition, replayable.",
-    why:"Decouple event producers and consumers with retained events and independent consumer progress.",
-    physical:"Canonical topics include mobility.yellow and mobility.hvfhv; registry validates schemas. DLQ names, retention and partition counts remain open.",
-    demos:["Partitioning and key choice","Offsets and consumer groups","Ordering guarantees","Retention and replay","Consumer lag under increasing load"],
-    fail:"Measure hot-key skew and lag with bounded fixtures; no particular zone share is assumed.",
-    cloud:"MSK or Confluent Cloud."},
-  flink:{name:"Apache Flink",kind:"Streaming — compute",status:"core",
-    role:"Stateful, event-time stream processing.",
-    why:"Selected for stateful event-time processing, while Spark owns historical batch work. This is a responsibility choice, not a claim that Spark cannot stream.",
-    physical:"Consume versioned events, watermark pickup_timestamp, key by city/zone and maintain windows with an explicit replay scope and late-data policy.",
-    demos:["Event time against processing time","Watermarks","Windows and keyed state","Checkpointing and recovery","Late-event side outputs","Delivery semantics"],
-    fail:"Kill a task manager mid-stream. It should recover from the last checkpoint without double counting — and proving that is worth more than any throughput number.",
-    cloud:"Managed Flink."},
-  rt:{name:"Real-time tables",kind:"Streaming — sink",status:"core",
-    role:"Where Flink output lands so the rest of the system can read it.",
-    why:"Durable queryable outputs reuse the shared lakehouse contract, subject to connector compatibility tests.",
-    physical:"Flink writes separate rt.zone_5min and rt.anomalies products through tested checkpoint/commit integration; track small files and revisions.",
-    demos:["Streaming into a table format","Reconciling real-time and batch results for the same window"],
-    fail:"Reconcile batch and streaming outputs under explicit window/revision rules. Do not assume atomic Iceberg and Redis effects.",
-    cloud:"Iceberg on S3."},
-  airflow:{name:"Airflow",kind:"Cross-cutting — orchestration",status:"core",
-    role:"Runs the pipeline in dependency order, on a schedule, with retries and backfills.",
-    why:"Schedule finite refresh, backfill, transformation and maintenance jobs with observable dependencies and retries.",
-    physical:"A DAG from ingest through validate, convert, update Iceberg, Spark transform, dbt run, dbt test, publish — plus a separate maintenance DAG.",
-    demos:["Dependencies and retries","Backfilling a past month","Idempotency — the same run twice produces the same table","Failure alerting"],
-    fail:"A backfill that double counts. Idempotency is the thing worth proving here.",
-    cloud:"MWAA or Astronomer. Dagster is a reasonable alternative but should not run alongside it."},
-  quality:{name:"Data quality",kind:"Cross-cutting — validation",status:"core",
-    role:"Catch bad records before they reach anything anyone reads, and keep the evidence.",
-    why:"TLC itself warns that record accuracy is not guaranteed, so this layer has a real reason to exist rather than a demonstrative one.",
-    physical:"Checks run at the boundary. Bronze preserves source fidelity. Validation gates Silver and Gold; invalid records retain quarantine reasons and source references.",
-    demos:["Nulls, duplicates, impossible values, schema violations","Quarantine and dead-letter routing","Quality metrics over time","Share of deliberately injected bad records detected"],
-    fail:"Silent passing. A test that reports but does not block is decoration — wire it as a gate.",
-    cloud:"Same, dbt tests plus Great Expectations if dbt falls short."},
-  catalog:{name:"Lineage and discovery",kind:"Cross-cutting — governance",status:"optional",
-    role:"Trace published numbers through source manifests, job runs and snapshots; dbt manifests add SQL dependencies.",
-    why:"Being able to trace gold.zone_hour_demand.trip_count back through dbt, Spark, Iceberg and the original TLC file is the clearest demonstration that the architecture is understood rather than assembled.",
-    physical:"Persist lineage artifacts now. The separate mandatory Iceberg catalog handles table metadata; OpenMetadata/OpenLineage services are deferred.",
-    demos:["Column-level lineage end to end","Dataset catalog with ownership and freshness"],
-    fail:"A dbt graph alone cannot prove ingestion/Spark column lineage. Join metadata explicitly and label unavailable lineage.",
-    cloud:"Discovery/lineage and Iceberg table catalogs remain distinct roles in every environment."},
-  obs:{name:"Observability",kind:"Cross-cutting — monitoring",status:"support",
-    role:"See the pipeline is unhealthy before a person notices the numbers are wrong.",
-    why:"Every reliability claim the project makes needs evidence, and the evidence is a chart that moved when something broke.",
-    physical:"Exporters on Kafka, Spark and Flink feeding Prometheus; Grafana boards for throughput, lag, checkpoint duration, job duration, failure counts, freshness and quality.",
-    demos:["Consumer lag rising under load","Backpressure","Checkpoint duration","Data freshness","Quality metrics over time"],
-    fail:"Dashboards nobody reads. Pick a small number of panels that would each have caught a real failure from the failure-injection suite.",
-    cloud:"CloudWatch or managed Grafana."}
-};
-const STATUS_LABEL = {core:"Core", support:"Important supporting", optional:"Optional", hist:"Historical"};
+    <div class="scrim" id="scrim"></div>
+    <aside
+      class="panel"
+      id="panel"
+      role="dialog"
+      aria-modal="true"
+      inert
+      aria-labelledby="pname"
+      tabindex="-1"
+    >
+      <div class="panel-in">
+        <div class="ptop">
+          <div>
+            <h3 id="pname">—</h3>
+            <span class="kind" id="pkind"></span>
+          </div>
+          <button class="pclose" id="pclose" aria-label="Close station detail">&#215;</button>
+        </div>
+        <div id="pbody"></div>
+      </div>
+    </aside>
+    <main>
+      <section id="purpose">
+        <div class="wrap">
+          <div class="sec-head">
+            <h2>What this platform is for</h2>
+            <p>
+              The project exists to answer one question end to end: what physically happens to a
+              single taxi trip as it travels from a public dataset to a number on a dashboard. Every
+              tool on the map earns its place by solving one problem that the tool before it cannot.
+            </p>
+          </div>
+          <div class="cols c3">
+            <div class="block">
+              <h4>The claim it makes</h4>
+              <ul>
+                <li>Production-shaped lakehouse over real public mobility data</li>
+                <li>Batch and streaming over the same records</li>
+                <li>Measured engineering decisions, not installed tools</li>
+                <li>Reliability tested by breaking it on purpose</li>
+              </ul>
+            </div>
+            <div class="block">
+              <h4>The claim it refuses to make</h4>
+              <ul>
+                <li>No petabyte or terabyte scale</li>
+                <li>No invented benchmark numbers — every figure comes from a run</li>
+                <li>No live NYC feed; the stream is a labelled replay</li>
+                <li>No always-on cloud cluster behind the demo</li>
+              </ul>
+            </div>
+            <div class="block">
+              <h4>The design rule</h4>
+              <p style="font-size: 14.5px; color: var(--slate); margin: 0">
+                For every component, in order: what production problem does it solve, what
+                physically happens, how is it measured, how does it fail, how does it recover. A
+                component that cannot answer all five is cut.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
 
-const panel = document.getElementById("panel");
-const scrim = document.getElementById("scrim");
-const pbody = document.getElementById("pbody");
-const pname = document.getElementById("pname");
-const pkind = document.getElementById("pkind");
-let lastFocus = null;
+      <section id="journey">
+        <div class="wrap">
+          <div class="sec-head">
+            <h2>One trip, all the way through</h2>
+            <p>
+              The learning spine of the project. A hypothetical trip from zone 161 to zone 237,
+              picked up at 18:31:42. Its project identity must follow the source contract; the
+              example is not a real trace or a claim that TLC supplies a trip ID.
+            </p>
+          </div>
+          <div class="cols c2">
+            <div>
+              <h3 style="margin-bottom: 14px">Batch path</h3>
+              <ol class="journey">
+                <li>
+                  <span class="what">Published by NYC TLC</span
+                  ><span class="how">monthly parquet drop</span>
+                </li>
+                <li>
+                  <span class="what">Downloaded by the ingestion job</span
+                  ><span class="how">python adapter, checksum recorded</span>
+                </li>
+                <li>
+                  <span class="what">Lands as an immutable object</span
+                  ><span class="how"
+                    >s3://urbanflow/raw/tlc/yellow/&lt;period&gt;/&lt;release&gt;/</span
+                  >
+                </li>
+                <li>
+                  <span class="what">Becomes a row inside a row group</span
+                  ><span class="how">parquet, compressed, column-addressable</span>
+                </li>
+                <li>
+                  <span class="what">Registered as a data file in a snapshot</span
+                  ><span class="how">iceberg manifest entry</span>
+                </li>
+                <li>
+                  <span class="what">Read, cleaned, enriched by Spark</span
+                  ><span class="how">bronze to silver, new parquet files</span>
+                </li>
+                <li>
+                  <span class="what">Committed as a new snapshot</span
+                  ><span class="how">older snapshot queryable while retained and supported</span>
+                </li>
+                <li>
+                  <span class="what">Queried interactively by Trino</span
+                  ><span class="how">partition pruning + predicate pushdown</span>
+                </li>
+                <li>
+                  <span class="what">Aggregated away by dbt</span
+                  ><span class="how">proposed Stage 2 dbt-trino; Stage 1 selected writer</span>
+                </li>
+                <li>
+                  <span class="what">Served from a gold mart</span
+                  ><span class="how">gold.zone_hour_demand</span>
+                </li>
+                <li>
+                  <span class="what">Rendered on the portal</span
+                  ><span class="how">versioned exported json first</span>
+                </li>
+              </ol>
+            </div>
+            <div>
+              <h3 style="margin-bottom: 14px">Streaming path, same record</h3>
+              <ol class="journey rt">
+                <li>
+                  <span class="what">Read back from historical parquet</span
+                  ><span class="how">replay producer, rate-controlled</span>
+                </li>
+                <li>
+                  <span class="what">Published with a partition key</span
+                  ><span class="how"
+                    >proposed key = (city, pickup_zone), topic mobility.yellow</span
+                  >
+                </li>
+                <li>
+                  <span class="what">Given a partition and an offset</span
+                  ><span class="how">illustrative partition/offset; configuration pending</span>
+                </li>
+                <li>
+                  <span class="what">Consumed by Flink with event time</span
+                  ><span class="how">watermark derived from pickup_timestamp</span>
+                </li>
+                <li>
+                  <span class="what">Placed in a five-minute window</span
+                  ><span class="how">state keyed by city, zone and replay scope</span>
+                </li>
+                <li>
+                  <span class="what">Deduplicated, late arrivals handled</span
+                  ><span class="how">allowed-lateness and too-late routing policy</span>
+                </li>
+                <li>
+                  <span class="what">Checkpointed</span
+                  ><span class="how">recovery point, not a result</span>
+                </li>
+                <li>
+                  <span class="what">Emitted as a real-time aggregate</span
+                  ><span class="how">trips per zone per five minutes</span>
+                </li>
+                <li>
+                  <span class="what">Written to an Iceberg sink</span
+                  ><span class="how">separate table from the batch path</span>
+                </li>
+              </ol>
+            </div>
+          </div>
+        </div>
+      </section>
 
-function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;"); }
-function list(items){ return "<ul>" + items.map(i => "<li>" + esc(i) + "</li>").join("") + "</ul>"; }
+      <section id="model">
+        <div class="wrap">
+          <div class="sec-head">
+            <h2>The data model</h2>
+            <p>
+              Proposed canonical tables match the data contracts. Bronze retains source fidelity,
+              Silver validates and normalizes, Gold defines business grains. Census and additional
+              marts remain optional.
+            </p>
+          </div>
+          <div class="cols c3">
+            <div class="block">
+              <h4>Bronze — source shape</h4>
+              <ul>
+                <li><b>raw_yellow_trips</b> — source shape and release provenance</li>
+                <li><b>raw_weather</b></li>
+                <li><b>raw_events</b>, <b>raw_traffic</b> — later sources</li>
+              </ul>
+              <p style="font-size: 13.5px; color: var(--slate); margin: 10px 0 0">
+                Preserve source-release bytes and provenance. Corrections create a new release;
+                validation and normalization occur downstream. Retention remains explicit.
+              </p>
+            </div>
+            <div class="block">
+              <h4>Silver — cleaned and joined</h4>
+              <ul>
+                <li>
+                  <b>clean_trips</b> — validated rows; rejected rows retain quarantine evidence
+                </li>
+                <li><b>normalized_events</b>, <b>normalized_traffic</b></li>
+                <li><b>normalized_weather</b></li>
+                <li><b>geographic_reference</b></li>
+              </ul>
+              <p style="font-size: 13.5px; color: var(--slate); margin: 10px 0 0">
+                Derived here: trip_duration_seconds, average_speed, valid-zone flag.
+              </p>
+            </div>
+            <div class="block">
+              <h4>Gold — business answers</h4>
+              <ul>
+                <li><b>zone_hour_demand</b></li>
+                <li><b>zone_hour_features</b></li>
+                <li><b>forecasting_features</b></li>
+                <li><b>mobility_anomalies</b></li>
+                <li><b>model_predictions</b></li>
+              </ul>
+              <p style="font-size: 13.5px; color: var(--slate); margin: 10px 0 0">
+                The initial portal reads validated Gold exports with version and freshness metadata.
+                Later APIs can expose current state and model outputs.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
 
-function openStation(id, el){
-  const d = STATIONS[id];
-  if(!d) return;
-  lastFocus = el || document.activeElement;
-  document.querySelectorAll(".stn.sel").forEach(n => n.classList.remove("sel"));
-  if(el) el.classList.add("sel");
-  pname.textContent = d.name;
-  pkind.textContent = d.kind;
-  pbody.innerHTML =
-    '<div class="pblock"><span class="tag ' + d.status + '">' + STATUS_LABEL[d.status] + '</span></div>' +
-    '<div class="pblock"><h4>Job</h4><p>' + esc(d.role) + '</p></div>' +
-    '<div class="pblock"><h4>Why it earns a place</h4><p>' + esc(d.why) + '</p></div>' +
-    '<div class="pblock"><h4>What physically happens</h4><p>' + esc(d.physical) + '</p></div>' +
-    '<div class="pblock"><h4>What it demonstrates</h4>' + list(d.demos) + '</div>' +
-    '<div class="pblock"><h4>How it fails, and what that teaches</h4><p>' + esc(d.fail) + '</p></div>' +
-    '<div class="pblock"><h4>Illustrative cloud mapping — verify before use</h4><p>' + esc(d.cloud) + '</p></div>';
-  panel.inert = false;
-  panel.classList.add("open");
-  scrim.classList.add("on");
-  panel.focus();
-}
-function closeStation(){
-  panel.inert = true;
-  panel.classList.remove("open");
-  scrim.classList.remove("on");
-  document.querySelectorAll(".stn.sel").forEach(n => n.classList.remove("sel"));
-  if(lastFocus && lastFocus.focus) lastFocus.focus();
-}
+      <section id="features">
+        <div class="wrap">
+          <div class="sec-head">
+            <h2>What the build has to demonstrate</h2>
+            <p>
+              The feature list is written as behaviours to prove, not tools to install. Each row is
+              something you can show working, and show failing.
+            </p>
+          </div>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Component</th>
+                  <th>Behaviours proven</th>
+                  <th>Measured by</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><b>Parquet</b></td>
+                  <td>
+                    compression, column pruning, predicate pushdown, row-group sizing, file sizing
+                  </td>
+                  <td>bytes scanned, file count, read time versus CSV</td>
+                </tr>
+                <tr>
+                  <td><b>Iceberg</b></td>
+                  <td>
+                    snapshots, time travel, schema evolution, partition evolution, rollback,
+                    concurrent writes, manifest structure
+                  </td>
+                  <td>
+                    snapshot history, files touched per commit, query time before and after
+                    partitioning
+                  </td>
+                </tr>
+                <tr>
+                  <td><b>Spark</b></td>
+                  <td>
+                    partitions, stages, shuffle, broadcast versus sort-merge join, skew and salting,
+                    partition pruning, task retry
+                  </td>
+                  <td>
+                    stage timings, shuffle bytes, straggler task duration, peak executor memory
+                  </td>
+                </tr>
+                <tr>
+                  <td><b>Trino</b></td>
+                  <td>
+                    distributed SQL, connector architecture, query planning, pushdown, distributed
+                    joins
+                  </td>
+                  <td>wall time, splits generated, data scanned per query</td>
+                </tr>
+                <tr>
+                  <td><b>DuckDB</b></td>
+                  <td>
+                    single-node analytical SQL; selected Parquet/Iceberg access mode must be tested
+                  </td>
+                  <td>latency against Trino and Spark on identical queries</td>
+                </tr>
+                <tr>
+                  <td><b>Kafka</b></td>
+                  <td>
+                    partitions, offsets, consumer groups, ordering guarantees, retention, replay,
+                    lag under load
+                  </td>
+                  <td>events per second at which lag starts growing</td>
+                </tr>
+                <tr>
+                  <td><b>Flink</b></td>
+                  <td>
+                    event time versus processing time, watermarks, windows, keyed state,
+                    checkpointing, late events, delivery semantics
+                  </td>
+                  <td>
+                    checkpoint duration, backpressure, late-event count, recovery time after kill
+                  </td>
+                </tr>
+                <tr>
+                  <td><b>dbt</b></td>
+                  <td>
+                    staging, intermediate and mart models, generic and custom tests, incremental
+                    models, docs and lineage
+                  </td>
+                  <td>test pass rate, incremental run time versus full refresh</td>
+                </tr>
+                <tr>
+                  <td><b>Airflow</b></td>
+                  <td>DAG dependencies, retries, backfills, idempotency, scheduling</td>
+                  <td>successful backfill of a past month with no duplicate rows</td>
+                </tr>
+                <tr>
+                  <td><b>Data quality</b></td>
+                  <td>
+                    nulls, duplicates, invalid values, schema violations, quarantine and dead-letter
+                    routing
+                  </td>
+                  <td>share of deliberately injected bad records caught</td>
+                </tr>
+                <tr>
+                  <td><b>Observability</b></td>
+                  <td>
+                    throughput, latency, failure rate, consumer lag, freshness, quality metrics
+                  </td>
+                  <td>a Grafana board that shows a broken pipeline before you notice by hand</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
 
-// give every station a generous, invisible hit target covering its dot and label
-document.querySelectorAll(".stn").forEach(g => {
-  const bb = g.getBBox();
-  const r = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-  r.setAttribute("x", bb.x - 8); r.setAttribute("y", bb.y - 8);
-  r.setAttribute("width", bb.width + 16); r.setAttribute("height", bb.height + 16);
-  r.setAttribute("fill", "none"); r.setAttribute("pointer-events", "all");
-  g.insertBefore(r, g.firstChild);
-});
+          <h3 style="margin: 34px 0 12px">Failures worth engineering on purpose</h3>
+          <div class="cols c4">
+            <div class="block">
+              <h4>Bad data</h4>
+              <ul>
+                <li>negative fare, negative distance</li>
+                <li>dropoff before pickup</li>
+                <li>zone_id that does not exist</li>
+                <li>duplicate trip_id</li>
+                <li>null timestamp</li>
+              </ul>
+            </div>
+            <div class="block">
+              <h4>Bad files</h4>
+              <ul>
+                <li>bounded small-file fixture versus compacted files</li>
+                <li>then compact and re-measure</li>
+              </ul>
+            </div>
+            <div class="block">
+              <h4>Bad distribution</h4>
+              <ul>
+                <li>synthetic hot-zone skew fixture</li>
+                <li>one Spark worker becomes a straggler</li>
+                <li>fix with salting or repartition</li>
+              </ul>
+            </div>
+            <div class="block">
+              <h4>Bad luck</h4>
+              <ul>
+                <li>kill Kafka mid-stream</li>
+                <li>kill a Flink task manager</li>
+                <li>fail a Spark task</li>
+                <li>roll back a bad Iceberg snapshot</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
 
-document.querySelectorAll(".stn").forEach(g => {
-  g.addEventListener("click", () => openStation(g.dataset.id, g));
-  g.addEventListener("keydown", e => {
-    if(e.key === "Enter" || e.key === " "){ e.preventDefault(); openStation(g.dataset.id, g); }
-  });
-});
-document.getElementById("pclose").addEventListener("click", closeStation);
-scrim.addEventListener("click", closeStation);
-document.addEventListener("keydown", e => {
-  if(!panel.classList.contains("open")) return;
-  if(e.key === "Escape") closeStation();
-  if(e.key === "Tab") { e.preventDefault(); document.getElementById("pclose").focus(); }
-});
+      <section id="running">
+        <div class="wrap">
+          <div class="sec-head">
+            <h2>Local profile, expandable system</h2>
+            <p>
+              The local host has 16 GB RAM and a 512 GB SSD. Resource policies belong in deployment
+              configuration, not business logic. Services run selectively; larger deployments can
+              retain more history and scale workers through the same contracts.
+            </p>
+          </div>
+          <div class="cols c2">
+            <div class="block">
+              <h4>Local admission budget</h4>
+              <ul>
+                <li>About 10 GB routine working data; 20 GB peak maximum</li>
+                <li>
+                  Count raw and curated copies, snapshots, Kafka logs, checkpoints, exports,
+                  telemetry and rewrite scratch
+                </li>
+                <li>Track container images separately; aim for 100+ GB free SSD</li>
+                <li>Provisional 8–10 GB stack RAM; measure actual service use</li>
+                <li>
+                  Keep selected historical periods plus a recent window; pause new work if protected
+                  history and a refresh cannot fit
+                </li>
+              </ul>
+            </div>
+            <div class="block">
+              <h4>Configurable modules</h4>
+              <ul>
+                <li>Source discovery and adapters independent of transforms</li>
+                <li>Shared object storage and compatible Iceberg catalog</li>
+                <li>Finite batch/modelling jobs; separate Kafka/Flink runtime</li>
+                <li>Optional product, ML and observability profiles</li>
+                <li>
+                  Versioned API/export contracts; configurable endpoints, retention, concurrency and
+                  partitions
+                </li>
+              </ul>
+            </div>
+          </div>
+          <p class="footnote">
+            Start with 100–500 MB inputs; expand only after measuring storage amplification and peak
+            scratch. Input size is not total working-set size.
+            <a href="../architecture/local.md">Local design</a> ·
+            <a href="../architecture/platform.md#modularity-and-expansion">Expansion boundaries</a>
+          </p>
+        </div>
+      </section>
+      <section id="lifecycle">
+        <div class="wrap">
+          <div class="sec-head">
+            <h2>Historical and latest, together</h2>
+            <p>
+              Frozen historical runs and ongoing latest-source refresh share adapters, manifests,
+              validation and publication rules. Latest means the newest validated published release,
+              not a live NYC feed.
+            </p>
+          </div>
+          <ol class="journey">
+            <li>
+              <span class="what">Discover and identify source releases</span
+              ><span class="how"
+                >period, version/checksum, publication time if known, observed time</span
+              >
+            </li>
+            <li>
+              <span class="what">Admit a bounded run</span
+              ><span class="how"
+                >separate refresh/backfill queues, peak disk and memory checks</span
+              >
+            </li>
+            <li>
+              <span class="what">Validate and reconcile</span
+              ><span class="how"
+                >unchanged release is a no-op; corrected periods replace or merge under explicit
+                rules</span
+              >
+            </li>
+            <li>
+              <span class="what">Publish a consistent release</span
+              ><span class="how"
+                >manifest pins table snapshots; conditional publication prevents stale jobs
+                replacing newer releases</span
+              >
+            </li>
+            <li>
+              <span class="what">Retain history deliberately</span
+              ><span class="how"
+                >protect experiment snapshots; scale storage/retention beyond local profile when
+                needed</span
+              >
+            </li>
+          </ol>
+          <p>
+            <a href="../architecture/data-lifecycle.md"
+              >Read correction, overlap, freshness and retention rules</a
+            >
+          </p>
+        </div>
+      </section>
+      <section id="roadmap">
+        <div class="wrap">
+          <div class="sec-head">
+            <h2>Delivery sequence</h2>
+            <p>
+              The original eight stages remain the canonical roadmap. The near-term engineering
+              slice adds modelling, maintenance and a small export-backed portal. Every stage
+              remains planned.
+            </p>
+          </div>
+          <div class="cols c3">
+            <div class="phase">
+              <span class="when">Stage 1</span>
+              <h4>Data foundation</h4>
+              <p>
+                Catalog/writer compatibility, historical slice, latest-release contract,
+                Bronze/Silver/Gold and one reconciled query.
+              </p>
+            </div>
+            <div class="phase">
+              <span class="when">Stage 2</span>
+              <h4>Distributed processing</h4>
+              <p>
+                Spark transforms, proposed dbt-trino Gold models, DuckDB comparisons, Airflow
+                refresh/backfill and maintenance.
+              </p>
+            </div>
+            <div class="phase">
+              <span class="when">Stage 3</span>
+              <h4>Streaming</h4>
+              <p>
+                Versioned contracts and registry, Kafka replay, Flink windows, separate rt tables,
+                recovery reconciliation; Redis with live serving.
+              </p>
+            </div>
+            <div class="phase">
+              <span class="when">Stage 4</span>
+              <h4>Multi-source / multi-city</h4>
+              <p>
+                Weather, events, traffic and later Chicago. Census remains optional; geography and
+                availability are explicit.
+              </p>
+            </div>
+            <div class="phase">
+              <span class="when">Stage 5</span>
+              <h4>ML</h4>
+              <p>
+                Temporal baselines, forecasts and anomaly evaluation, MLflow, versioned inference
+                and rollback.
+              </p>
+            </div>
+            <div class="phase">
+              <span class="when">Stage 6</span>
+              <h4>Agent</h4>
+              <p>
+                Authorized tools, bounded read-only SQL and evidence-grounded responses, with
+                security evaluations.
+              </p>
+            </div>
+            <div class="phase">
+              <span class="when">Stage 7</span>
+              <h4>Production hardening</h4>
+              <p>
+                Broader operational, security, load and failure evidence. Basic correctness and
+                telemetry start in Stage 1.
+              </p>
+            </div>
+            <div class="phase">
+              <span class="when">Stage 8</span>
+              <h4>Public platform</h4>
+              <p>
+                Integrate completed capabilities and measured reports. Architecture/engineering/data
+                pages may ship earlier.
+              </p>
+            </div>
+          </div>
+          <p class="footnote">
+            <a href="../roadmap.md">Exit evidence and first implementation commits</a>. Optional
+            cloud validation tests portability; it does not prove production capacity.
+          </p>
+        </div>
+      </section>
+      <section id="portal">
+        <div class="wrap">
+          <div class="sec-head">
+            <h2>The public portal</h2>
+            <p>
+              The portal gives the platform a real consumer. Its value is not the charts — it is
+              that a reader can inspect the architecture, the lineage and the measurements without
+              cloning anything.
+            </p>
+          </div>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Route</th>
+                  <th>What it shows</th>
+                  <th>Priority</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="mono">/architecture</td>
+                  <td>
+                    This diagram, interactive, with the role and reasoning behind each component
+                  </td>
+                  <td>First</td>
+                </tr>
+                <tr>
+                  <td class="mono">/engineering</td>
+                  <td>
+                    Benchmark results with methodology — engine comparison, partitioning, file
+                    sizing
+                  </td>
+                  <td>First</td>
+                </tr>
+                <tr>
+                  <td class="mono">/reliability</td>
+                  <td>Failure scenarios and what the pipeline did about each one</td>
+                  <td>First</td>
+                </tr>
+                <tr>
+                  <td class="mono">/data-lineage</td>
+                  <td>Column-level path from TLC file to gold metric</td>
+                  <td>Second</td>
+                </tr>
+                <tr>
+                  <td class="mono">/explorer</td>
+                  <td>
+                    Filterable trip exploration by date, hour, borough, zone, payment, weather
+                  </td>
+                  <td>Second</td>
+                </tr>
+                <tr>
+                  <td class="mono">/demand</td>
+                  <td>Trips by hour and zone, peak periods, demand heatmap</td>
+                  <td>Second</td>
+                </tr>
+                <tr>
+                  <td class="mono">/revenue</td>
+                  <td>Revenue, average fare, fare distribution, payment mix</td>
+                  <td>Third</td>
+                </tr>
+                <tr>
+                  <td class="mono">/streaming</td>
+                  <td>
+                    Replay metrics — events per second, consumer lag, late and invalid counts, last
+                    events. Labelled as a replay of historical records, every time.
+                  </td>
+                  <td>Third</td>
+                </tr>
+                <tr>
+                  <td class="mono">/data</td>
+                  <td>
+                    Source transparency — which data is real, which is simulated, record counts,
+                    links to the publishers
+                  </td>
+                  <td>Ships with the first page</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
 
-const GROUP = {
-  batch:["tlc","noaa","census","ingest","minio","parquet","iceberg","spark","trino","duckdb","dbt","gold"],
-  stream:["replay","kafka","flink","rt"],
-  serve:["clickhouse","export","portal"],
-  cross:["airflow","quality","catalog","obs"]
-};
-document.querySelectorAll(".filters button").forEach(b => {
-  b.addEventListener("click", () => {
-    const f = b.dataset.f;
-    document.querySelectorAll(".filters button").forEach(o =>
-      o.setAttribute("aria-pressed", String(o === b)));
-    document.querySelectorAll(".stn").forEach(g =>
-      g.classList.toggle("off", f !== "all" && !GROUP[f].includes(g.dataset.id)));
-    document.querySelectorAll("[data-line]").forEach(l =>
-      l.classList.toggle("off", f !== "all" && l.dataset.line !== f));
-  });
-});
-</script>
-</body>
+      <section id="cloud">
+        <div class="wrap">
+          <div class="sec-head">
+            <h2>Two tiers, and the cloud mapping</h2>
+            <p>
+              Local engineering and public serving are separate initial deployments. The full
+              logical architecture can also move to a larger environment. These provider mappings
+              are candidates, not validated equivalents or cost promises.
+            </p>
+          </div>
+          <div class="cols c2">
+            <div class="tablewrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Local</th>
+                    <th>Illustrative candidate</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>MinIO</td>
+                    <td>S3 or GCS</td>
+                  </tr>
+                  <tr>
+                    <td>Iceberg on MinIO</td>
+                    <td>Iceberg on S3 with Glue or Polaris</td>
+                  </tr>
+                  <tr>
+                    <td>Spark local</td>
+                    <td>EMR or Databricks</td>
+                  </tr>
+                  <tr>
+                    <td>Kafka in Docker</td>
+                    <td>MSK or Confluent Cloud</td>
+                  </tr>
+                  <tr>
+                    <td>Flink in Docker</td>
+                    <td>Managed Flink</td>
+                  </tr>
+                  <tr>
+                    <td>Airflow in Docker</td>
+                    <td>MWAA or Astronomer</td>
+                  </tr>
+                  <tr>
+                    <td>Trino in Docker</td>
+                    <td>Starburst or managed Trino</td>
+                  </tr>
+                  <tr>
+                    <td>ClickHouse in Docker</td>
+                    <td>ClickHouse Cloud</td>
+                  </tr>
+                  <tr>
+                    <td>Prometheus and Grafana</td>
+                    <td>CloudWatch or managed Grafana</td>
+                  </tr>
+                  <tr>
+                    <td>Optional discovery/lineage</td>
+                    <td>Evaluate separately from Iceberg catalog</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="cols" style="gap: 16px">
+              <div class="block">
+                <h4>Tier 1 — engineering environment</h4>
+                <p style="font-size: 14.5px; color: var(--slate); margin: 0">
+                  Your Mac. 10–20 GB of real data, the full lakehouse and streaming stack under
+                  Docker profiles. This is where the engineering happens and where every benchmark
+                  is produced.
+                </p>
+              </div>
+              <div class="block">
+                <h4>Tier 2 — public serving</h4>
+                <p style="font-size: 14.5px; color: var(--slate); margin: 0">
+                  Bounded validated Gold exports, with payload size measured per page. Start with
+                  generated JSON read by a static Next.js build; add a small database only when a
+                  page genuinely needs to query rather than read.
+                </p>
+              </div>
+              <div class="block">
+                <h4>Expanded deployment reference</h4>
+                <p style="font-size: 14.5px; color: var(--slate); margin: 0">
+                  Storage, catalog, Kafka, Flink, Spark and Airflow can be deployed remotely when
+                  needed. Keep data/control services private, configure retention and capacity
+                  independently, and test migration and recovery.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+      <section id="review">
+        <div class="wrap">
+          <div class="sec-head">
+            <h2>Architecture decision gates</h2>
+            <p>
+              Findings from the supplied review are reconciled with the earlier design. These are
+              requirements and proposed directions; implementation evidence is still pending.
+            </p>
+          </div>
+          <div class="finding">
+            <div class="fhead">
+              <span class="sev">Planned</span>
+              <h4>Catalog compatibility</h4>
+            </div>
+            <p>
+              Required before foundation implementation: choose a catalog product and writer using
+              pinned Spark/Trino/Flink compatibility tests. REST is a candidate interface, not proof
+              of universal support. Optional discovery/lineage tools do not replace this catalog.
+            </p>
+          </div>
+          <div class="finding">
+            <div class="fhead">
+              <span class="sev">Planned</span>
+              <h4>Table ownership</h4>
+            </div>
+            <p>
+              Spark owns Bronze-to-Silver; proposed dbt-trino owns Silver-to-Gold from Stage 2 after
+              adapter/materialization tests. Flink owns separate rt tables. Stage 1 uses one
+              temporary Gold writer and transfers ownership explicitly.
+            </p>
+          </div>
+          <div class="finding">
+            <div class="fhead">
+              <span class="sev">Planned</span>
+              <h4>Latest releases and corrections</h4>
+            </div>
+            <p>
+              Coordinate overlapping refresh/backfill runs. Record source revisions, replace or
+              merge corrected periods safely, publish snapshot manifests and keep frozen experiments
+              reproducible.
+            </p>
+          </div>
+          <div class="finding">
+            <div class="fhead">
+              <span class="sev">Planned</span>
+              <h4>Maintenance and retention</h4>
+            </div>
+            <p>
+              Define retention and pins with the first write. Budget rewrite headroom and test
+              compaction before sustained streaming. Expiry/orphan cleanup must protect active
+              writers, recovery and pinned experiments.
+            </p>
+          </div>
+          <div class="finding">
+            <div class="fhead">
+              <span class="sev">Planned</span>
+              <h4>Benchmark fairness</h4>
+            </div>
+            <p>
+              One engine at a time, comparable total resources, identical semantics and checked
+              results. Separate startup and cache conditions. Warm series: one discarded warm-up,
+              median/range of at least five runs. Report raw results and limitations.
+            </p>
+          </div>
+          <div class="finding">
+            <div class="fhead">
+              <span class="sev">Planned</span>
+              <h4>Geography and deferred tools</h4>
+            </div>
+            <p>
+              Keep weather observation geography explicit. Census needs a versioned crosswalk and
+              measure-specific aggregation. Defer ClickHouse, OpenMetadata and additional ingestion
+              frameworks until their workload justifies them.
+            </p>
+          </div>
+          <div class="finding">
+            <div class="fhead">
+              <span class="sev">Planned</span>
+              <h4>Tests and evidence</h4>
+            </div>
+            <p>
+              Code, contract and recovery tests accompany data checks. No benchmark, capacity,
+              monthly cost or provider compatibility claim is established by these diagrams.
+            </p>
+          </div>
+          <p>
+            <a href="../decisions/README.md">Decision register</a> ·
+            <a href="../decisions/source-reconciliation.md"
+              >Source reconciliation and out-of-scope material</a
+            >
+            · <a href="../operations/benchmarks.md">Benchmark protocol</a>
+          </p>
+        </div>
+      </section>
+    </main>
+
+    <footer
+      style="border-top: 3px solid var(--ink); background: var(--paper); padding: 26px 0 44px"
+    >
+      <div class="wrap">
+        <p class="footnote" style="margin: 0">
+          Adapted from the supplied architecture-review.html and reconciled planning context on
+          2026-09-24. All capabilities are planned. Curated Markdown governs decisions; internal
+          source files remain unchanged. No measured benchmark results exist yet.
+        </p>
+      </div>
+    </footer>
+    <script>
+      const STATIONS = {
+        tlc: {
+          name: "NYC TLC trip records",
+          kind: "Source",
+          status: "core",
+          role: "The backbone dataset. Monthly yellow taxi trip records, plus the zone lookup and zone geometry.",
+          why: "Real, public, already published as Parquet, and it arrives in monthly increments — which gives the project natural batches and a natural backfill story.",
+          physical:
+            "A Parquet file per month per taxi type, downloaded over HTTPS and never modified afterwards.",
+          demos: [
+            "Monthly incremental ingestion",
+            "Backfill of a past month",
+            "Schema drift between vintages",
+          ],
+          fail: "TLC states it does not guarantee the accuracy of records submitted by technology providers. That is why the quality layer is not artificial.",
+          cloud: "Same — a public HTTP source either way.",
+        },
+        noaa: {
+          name: "NOAA weather",
+          kind: "Source",
+          status: "support",
+          role: "Hourly weather readings used to enrich trips.",
+          why: "Turns the project from trip processing into multi-source analysis, and gives dbt a real dimension to join.",
+          physical:
+            "Selected observation records with station, time, availability and coverage metadata; sizes and access method must be measured.",
+          demos: ["Time-based join against trips", "Slowly changing dimension handling"],
+          fail: "Coverage is a handful of city stations, not per zone. Model it at city or borough level and say so.",
+          cloud: "Same public API.",
+        },
+        census: {
+          name: "US Census ACS",
+          kind: "Source",
+          status: "optional",
+          role: "Demographic and economic attributes attached to geography.",
+          why: "Optional area-level context. It does not establish individual characteristics or causes of demand.",
+          physical:
+            "A versioned geography crosswalk and measure-specific aggregation, selected in a separate spatial study.",
+          demos: ["Dimension enrichment", "Pulling a narrow slice of a very wide source"],
+          fail: "ACS geography is tracts and PUMAs, not TLC zones. An area-weighted spatial crosswalk is required and is a real piece of work.",
+          cloud: "Same public API.",
+        },
+        ingest: {
+          name: "Ingestion",
+          kind: "Layer — extract and load",
+          status: "core",
+          role: "Parameterized source discovery, download, provenance and retry. NiFi/dlt remain later options if needed.",
+          why: "Start with a small adapter whose source discovery, manifests and retry behavior can be tested independently.",
+          physical:
+            "Python adapter discovers historical and latest published releases, checks manifests, downloads immutable source bytes and records checksums.",
+          demos: ["Incremental load", "Idempotent re-run", "Load state tracking"],
+          fail: "Partial download or a source schema change. Both should quarantine rather than land.",
+          cloud: "Same code; the destination becomes S3.",
+        },
+        minio: {
+          name: "MinIO",
+          kind: "Layer — object storage",
+          status: "core",
+          role: "S3-compatible object storage. The place bytes live.",
+          why: "Local object storage provides the reference storage boundary. Cloud portability requires connector, identity and recovery testing.",
+          physical:
+            "Buckets and prefixes: raw/tlc/yellow/2025/09/, processed/, checkpoints/. Raw is treated as an immutable source-of-truth copy.",
+          demos: [
+            "Object layout and prefix design",
+            "Raw zone immutability",
+            "S3 API compatibility",
+          ],
+          fail: "Test unavailable storage, interrupted uploads, disk pressure and metadata/data recovery. Local storage is not highly available.",
+          cloud:
+            "Cloud object storage candidate; validate API/connector differences and migration.",
+        },
+        parquet: {
+          name: "Parquet",
+          kind: "Layer — file format",
+          status: "core",
+          role: "How a set of rows is physically laid out inside one object.",
+          why: "Columnar layout makes column pruning and predicate pushdown possible, which is where most query speed comes from. This is the first place performance becomes measurable.",
+          physical:
+            "Row groups, each holding column chunks with their own statistics. A reader can skip whole row groups using min and max values without decompressing them.",
+          demos: [
+            "CSV against Parquet on size and read time",
+            "Compression codecs",
+            "Column pruning",
+            "Predicate pushdown",
+            "Row-group and file sizing",
+          ],
+          fail: "Thousands of tiny files. Metadata overhead and file opens dominate, and query time collapses. Worth creating deliberately, then compacting.",
+          cloud: "Identical — the format does not care where it sits.",
+        },
+        iceberg: {
+          name: "Apache Iceberg",
+          kind: "Layer — table format",
+          status: "core",
+          role: "Turns a directory of Parquet files into a table with a schema, a history and transactional commits.",
+          why: "This is the interchange of the whole architecture. Without it, Spark, Trino, Flink and dbt would each have to agree by convention on which files belong to which table. With it, they agree by reading the same metadata.",
+          physical:
+            "A metadata file points at a snapshot; a snapshot points at manifest lists; manifests point at data files with per-file statistics. Writing does not modify files — it writes new ones and commits a new snapshot.",
+          demos: [
+            "Snapshots and time travel",
+            "Schema evolution",
+            "Partition evolution",
+            "Rollback after a bad write",
+            "Concurrent write conflicts",
+            "Manifest inspection",
+          ],
+          fail: "Unbounded snapshot retention fills the disk, and frequent small commits from a streaming sink fragment the table. Both need a scheduled maintenance job.",
+          cloud: "Iceberg on S3 with Glue, Polaris or a REST catalog.",
+        },
+        spark: {
+          name: "Apache Spark",
+          kind: "Compute — batch",
+          status: "core",
+          role: "Distributed batch transformation. Reads Iceberg, writes Iceberg.",
+          why: "It is where the distributed-systems concepts become visible: partitions, shuffles, skew and recovery. Not because the data needs it at this size, but because the behaviour is what is being learned.",
+          physical:
+            "A job splits into stages at shuffle boundaries; stages split into tasks, one per partition; tasks read files, transform, and write new Parquet, which is then committed as a snapshot.",
+          demos: [
+            "Partitions, stages and tasks",
+            "Shuffle behaviour",
+            "Broadcast against sort-merge joins",
+            "Skew and salting",
+            "Partition pruning",
+            "Task failure and retry",
+            "Execution plan reading",
+          ],
+          fail: "Inject bounded synthetic skew and task failure; compare output correctness and recovery under declared resources.",
+          cloud:
+            "EMR or other Spark deployment candidates; dependencies and access must be validated.",
+        },
+        trino: {
+          name: "Trino",
+          kind: "Compute — interactive SQL",
+          status: "core",
+          role: "Fast interactive SQL across Iceberg without moving data.",
+          why: "A different job from Spark. Spark is for transformation you schedule; Trino is for questions you ask now. Comparing the two on the same query is one of the more instructive things in the project.",
+          physical:
+            "A coordinator plans the query and distributes splits to workers, which read Parquet directly from object storage and stream results back.",
+          demos: [
+            "Distributed query planning",
+            "Connector architecture",
+            "Predicate and partition pushdown",
+            "Distributed joins",
+            "Splits generated per query",
+          ],
+          fail: "A query that scans everything because the predicate could not be pushed down. Visible in bytes scanned, and fixable by partitioning.",
+          cloud: "Starburst, Athena or a managed Trino.",
+        },
+        duckdb: {
+          name: "DuckDB",
+          kind: "Compute — single node",
+          status: "core",
+          role: "Single-process analytical SQL over Parquet and Iceberg, with no cluster at all.",
+          why: "A lightweight inspection tool and single-node comparison baseline. Results characterize the selected workload and machine.",
+          physical:
+            "Read selected Parquet files or a tested Iceberg access path; disclose snapshot/access differences in comparisons.",
+          demos: [
+            "Latency against Trino and Spark on identical queries",
+            "The crossover point where distribution starts to win",
+          ],
+          fail: "Memory pressure once the working set outgrows the machine. That boundary is the finding, not the bug.",
+          cloud: "Runs anywhere, including inside the portal build step.",
+        },
+        dbt: {
+          name: "dbt",
+          kind: "Layer — transformation",
+          status: "core",
+          role: "Proposed Stage 2 Silver-to-Gold SQL models through Trino; exact adapter and materializations must pass compatibility tests.",
+          why: "Proposed SQL model dependency, test and documentation layer; requires an adapter compatibility gate.",
+          physical:
+            "Compiles models to SQL, runs them against Trino in dependency order, and records a manifest that describes the whole graph.",
+          demos: [
+            "Staging, intermediate and mart layering",
+            "Generic and custom tests",
+            "Incremental models",
+            "Documentation and lineage from the manifest",
+          ],
+          fail: "A failing test should stop the DAG rather than publish quietly. Wire dbt test as a gate, not a report.",
+          cloud: "dbt Cloud or the same dbt-core in CI.",
+        },
+        gold: {
+          name: "Gold marts",
+          kind: "Layer — serving model",
+          status: "core",
+          role: "Defined-grain business aggregates and feature products behind versioned consumer contracts.",
+          why: "Stable grains and schemas decouple consumers from transformation internals while retaining snapshot and freshness provenance.",
+          physical:
+            "Validated aggregates such as gold.zone_hour_demand, with explicit grain, source snapshots and publication metadata.",
+          demos: [
+            "Aggregation collapsing millions of rows into a servable table",
+            "The interface boundary between platform and consumer",
+          ],
+          fail: "Gold going stale without anyone noticing. Freshness is a monitored metric, not an assumption.",
+          cloud: "Unchanged.",
+        },
+        clickhouse: {
+          name: "ClickHouse",
+          kind: "Layer — OLAP serving",
+          status: "optional",
+          role: "Deferred OLAP serving option, introduced only for measured query/concurrency needs.",
+          why: "Good lakehouse storage is not automatically good dashboard serving. If a page needs interactive filtering at speed, a serving database earns its place — and Trino against Iceberg versus ClickHouse is a legitimate benchmark.",
+          physical:
+            "Gold tables loaded into a merge-tree engine optimised for the specific query shapes the dashboard issues.",
+          demos: [
+            "Serving latency against Trino on Iceberg",
+            "When a serving layer is worth its operational cost",
+          ],
+          fail: "Currently it has no load-bearing job — the portal reads exported JSON. Defer it until a page genuinely needs it.",
+          cloud: "ClickHouse Cloud.",
+        },
+        export: {
+          name: "Gold export",
+          kind: "Boundary — tier 1 to tier 2",
+          status: "core",
+          role: "Initial boundary between engineering and public serving; larger deployments may use runtime APIs.",
+          why: "Bounded aggregates let the public demo operate independently of engineering services; actual hosting costs remain to be evaluated.",
+          physical:
+            "Validated Gold snapshots become bounded versioned JSON payloads with coverage, freshness, lineage and checksums.",
+          demos: [
+            "Separating engineering environment from serving environment",
+            "Publishing a freshness timestamp the site displays",
+          ],
+          fail: "A failed export retains the prior complete release with its original freshness labels. Never publish a partially updated release.",
+          cloud:
+            "Object storage plus a static host, or a small database when a page needs querying.",
+        },
+        portal: {
+          name: "Next.js portal",
+          kind: "Consumer",
+          status: "support",
+          role: "The public face. Architecture, benchmarks, reliability results, lineage, and interactive exploration.",
+          why: "It gives the platform a real consumer, which is what turns a repository into something a reader can evaluate without cloning it.",
+          physical:
+            "A static build reading exported JSON, with a database behind it only if a route genuinely needs live queries.",
+          demos: [
+            "An interactive architecture diagram",
+            "Benchmark results with methodology",
+            "Failure scenarios and outcomes",
+            "Source transparency",
+          ],
+          fail: "Scope. Nine routes is a second project. Ship architecture, engineering and data first.",
+          cloud: "Static hosting candidate; provider, storage, limits and costs are not selected.",
+        },
+        replay: {
+          name: "Replay producer",
+          kind: "Streaming — source",
+          status: "core",
+          role: "Reads historical trip records and publishes them to Kafka at a controllable rate.",
+          why: "The selected TLC source is published historical data. Replay demonstrates event-time processing separately from latest-source refresh.",
+          physical:
+            "Read frozen historical Parquet, preserve pickup_timestamp as event time and emit a versioned envelope at a configured rate.",
+          demos: [
+            "Rate control and load testing",
+            "Deliberate late, out-of-order and duplicate events",
+            "Finding the throughput where consumer lag starts to grow",
+          ],
+          fail: "Persist reproducible source position and run identity; restart may resend records. Reconcile deduplication and label all replay surfaces.",
+          cloud: "Same producer against MSK.",
+        },
+        kafka: {
+          name: "Apache Kafka",
+          kind: "Streaming — transport",
+          status: "core",
+          role: "The event backbone. Durable, ordered per partition, replayable.",
+          why: "Decouple event producers and consumers with retained events and independent consumer progress.",
+          physical:
+            "Canonical topics include mobility.yellow and mobility.hvfhv; registry validates schemas. DLQ names, retention and partition counts remain open.",
+          demos: [
+            "Partitioning and key choice",
+            "Offsets and consumer groups",
+            "Ordering guarantees",
+            "Retention and replay",
+            "Consumer lag under increasing load",
+          ],
+          fail: "Measure hot-key skew and lag with bounded fixtures; no particular zone share is assumed.",
+          cloud: "MSK or Confluent Cloud.",
+        },
+        flink: {
+          name: "Apache Flink",
+          kind: "Streaming — compute",
+          status: "core",
+          role: "Stateful, event-time stream processing.",
+          why: "Selected for stateful event-time processing, while Spark owns historical batch work. This is a responsibility choice, not a claim that Spark cannot stream.",
+          physical:
+            "Consume versioned events, watermark pickup_timestamp, key by city/zone and maintain windows with an explicit replay scope and late-data policy.",
+          demos: [
+            "Event time against processing time",
+            "Watermarks",
+            "Windows and keyed state",
+            "Checkpointing and recovery",
+            "Late-event side outputs",
+            "Delivery semantics",
+          ],
+          fail: "Kill a task manager mid-stream. It should recover from the last checkpoint without double counting — and proving that is worth more than any throughput number.",
+          cloud: "Managed Flink.",
+        },
+        rt: {
+          name: "Real-time tables",
+          kind: "Streaming — sink",
+          status: "core",
+          role: "Where Flink output lands so the rest of the system can read it.",
+          why: "Durable queryable outputs reuse the shared lakehouse contract, subject to connector compatibility tests.",
+          physical:
+            "Flink writes separate rt.zone_5min and rt.anomalies products through tested checkpoint/commit integration; track small files and revisions.",
+          demos: [
+            "Streaming into a table format",
+            "Reconciling real-time and batch results for the same window",
+          ],
+          fail: "Reconcile batch and streaming outputs under explicit window/revision rules. Do not assume atomic Iceberg and Redis effects.",
+          cloud: "Iceberg on S3.",
+        },
+        airflow: {
+          name: "Airflow",
+          kind: "Cross-cutting — orchestration",
+          status: "core",
+          role: "Runs the pipeline in dependency order, on a schedule, with retries and backfills.",
+          why: "Schedule finite refresh, backfill, transformation and maintenance jobs with observable dependencies and retries.",
+          physical:
+            "A DAG from ingest through validate, convert, update Iceberg, Spark transform, dbt run, dbt test, publish — plus a separate maintenance DAG.",
+          demos: [
+            "Dependencies and retries",
+            "Backfilling a past month",
+            "Idempotency — the same run twice produces the same table",
+            "Failure alerting",
+          ],
+          fail: "A backfill that double counts. Idempotency is the thing worth proving here.",
+          cloud:
+            "MWAA or Astronomer. Dagster is a reasonable alternative but should not run alongside it.",
+        },
+        quality: {
+          name: "Data quality",
+          kind: "Cross-cutting — validation",
+          status: "core",
+          role: "Catch bad records before they reach anything anyone reads, and keep the evidence.",
+          why: "TLC itself warns that record accuracy is not guaranteed, so this layer has a real reason to exist rather than a demonstrative one.",
+          physical:
+            "Checks run at the boundary. Bronze preserves source fidelity. Validation gates Silver and Gold; invalid records retain quarantine reasons and source references.",
+          demos: [
+            "Nulls, duplicates, impossible values, schema violations",
+            "Quarantine and dead-letter routing",
+            "Quality metrics over time",
+            "Share of deliberately injected bad records detected",
+          ],
+          fail: "Silent passing. A test that reports but does not block is decoration — wire it as a gate.",
+          cloud: "Same, dbt tests plus Great Expectations if dbt falls short.",
+        },
+        catalog: {
+          name: "Lineage and discovery",
+          kind: "Cross-cutting — governance",
+          status: "optional",
+          role: "Trace published numbers through source manifests, job runs and snapshots; dbt manifests add SQL dependencies.",
+          why: "Being able to trace gold.zone_hour_demand.trip_count back through dbt, Spark, Iceberg and the original TLC file is the clearest demonstration that the architecture is understood rather than assembled.",
+          physical:
+            "Persist lineage artifacts now. The separate mandatory Iceberg catalog handles table metadata; OpenMetadata/OpenLineage services are deferred.",
+          demos: [
+            "Column-level lineage end to end",
+            "Dataset catalog with ownership and freshness",
+          ],
+          fail: "A dbt graph alone cannot prove ingestion/Spark column lineage. Join metadata explicitly and label unavailable lineage.",
+          cloud:
+            "Discovery/lineage and Iceberg table catalogs remain distinct roles in every environment.",
+        },
+        obs: {
+          name: "Observability",
+          kind: "Cross-cutting — monitoring",
+          status: "support",
+          role: "See the pipeline is unhealthy before a person notices the numbers are wrong.",
+          why: "Every reliability claim the project makes needs evidence, and the evidence is a chart that moved when something broke.",
+          physical:
+            "Exporters on Kafka, Spark and Flink feeding Prometheus; Grafana boards for throughput, lag, checkpoint duration, job duration, failure counts, freshness and quality.",
+          demos: [
+            "Consumer lag rising under load",
+            "Backpressure",
+            "Checkpoint duration",
+            "Data freshness",
+            "Quality metrics over time",
+          ],
+          fail: "Dashboards nobody reads. Pick a small number of panels that would each have caught a real failure from the failure-injection suite.",
+          cloud: "CloudWatch or managed Grafana.",
+        },
+      };
+      const STATUS_LABEL = {
+        core: "Core",
+        support: "Important supporting",
+        optional: "Optional",
+        hist: "Historical",
+      };
+
+      const panel = document.getElementById("panel");
+      const scrim = document.getElementById("scrim");
+      const pbody = document.getElementById("pbody");
+      const pname = document.getElementById("pname");
+      const pkind = document.getElementById("pkind");
+      let lastFocus = null;
+
+      function esc(s) {
+        return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;");
+      }
+      function list(items) {
+        return "<ul>" + items.map((i) => "<li>" + esc(i) + "</li>").join("") + "</ul>";
+      }
+
+      function openStation(id, el) {
+        const d = STATIONS[id];
+        if (!d) return;
+        lastFocus = el || document.activeElement;
+        document.querySelectorAll(".stn.sel").forEach((n) => n.classList.remove("sel"));
+        if (el) el.classList.add("sel");
+        pname.textContent = d.name;
+        pkind.textContent = d.kind;
+        pbody.innerHTML =
+          '<div class="pblock"><span class="tag ' +
+          d.status +
+          '">' +
+          STATUS_LABEL[d.status] +
+          "</span></div>" +
+          '<div class="pblock"><h4>Job</h4><p>' +
+          esc(d.role) +
+          "</p></div>" +
+          '<div class="pblock"><h4>Why it earns a place</h4><p>' +
+          esc(d.why) +
+          "</p></div>" +
+          '<div class="pblock"><h4>What physically happens</h4><p>' +
+          esc(d.physical) +
+          "</p></div>" +
+          '<div class="pblock"><h4>What it demonstrates</h4>' +
+          list(d.demos) +
+          "</div>" +
+          '<div class="pblock"><h4>How it fails, and what that teaches</h4><p>' +
+          esc(d.fail) +
+          "</p></div>" +
+          '<div class="pblock"><h4>Illustrative cloud mapping — verify before use</h4><p>' +
+          esc(d.cloud) +
+          "</p></div>";
+        panel.inert = false;
+        panel.classList.add("open");
+        scrim.classList.add("on");
+        panel.focus();
+      }
+      function closeStation() {
+        panel.inert = true;
+        panel.classList.remove("open");
+        scrim.classList.remove("on");
+        document.querySelectorAll(".stn.sel").forEach((n) => n.classList.remove("sel"));
+        if (lastFocus && lastFocus.focus) lastFocus.focus();
+      }
+
+      // give every station a generous, invisible hit target covering its dot and label
+      document.querySelectorAll(".stn").forEach((g) => {
+        const bb = g.getBBox();
+        const r = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+        r.setAttribute("x", bb.x - 8);
+        r.setAttribute("y", bb.y - 8);
+        r.setAttribute("width", bb.width + 16);
+        r.setAttribute("height", bb.height + 16);
+        r.setAttribute("fill", "none");
+        r.setAttribute("pointer-events", "all");
+        g.insertBefore(r, g.firstChild);
+      });
+
+      document.querySelectorAll(".stn").forEach((g) => {
+        g.addEventListener("click", () => openStation(g.dataset.id, g));
+        g.addEventListener("keydown", (e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            openStation(g.dataset.id, g);
+          }
+        });
+      });
+      document.getElementById("pclose").addEventListener("click", closeStation);
+      scrim.addEventListener("click", closeStation);
+      document.addEventListener("keydown", (e) => {
+        if (!panel.classList.contains("open")) return;
+        if (e.key === "Escape") closeStation();
+        if (e.key === "Tab") {
+          e.preventDefault();
+          document.getElementById("pclose").focus();
+        }
+      });
+
+      const GROUP = {
+        batch: [
+          "tlc",
+          "noaa",
+          "census",
+          "ingest",
+          "minio",
+          "parquet",
+          "iceberg",
+          "spark",
+          "trino",
+          "duckdb",
+          "dbt",
+          "gold",
+        ],
+        stream: ["replay", "kafka", "flink", "rt"],
+        serve: ["clickhouse", "export", "portal"],
+        cross: ["airflow", "quality", "catalog", "obs"],
+      };
+      document.querySelectorAll(".filters button").forEach((b) => {
+        b.addEventListener("click", () => {
+          const f = b.dataset.f;
+          document
+            .querySelectorAll(".filters button")
+            .forEach((o) => o.setAttribute("aria-pressed", String(o === b)));
+          document
+            .querySelectorAll(".stn")
+            .forEach((g) =>
+              g.classList.toggle("off", f !== "all" && !GROUP[f].includes(g.dataset.id)),
+            );
+          document
+            .querySelectorAll("[data-line]")
+            .forEach((l) => l.classList.toggle("off", f !== "all" && l.dataset.line !== f));
+        });
+      });
+    </script>
+  </body>
 </html>

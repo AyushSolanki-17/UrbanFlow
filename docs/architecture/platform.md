@@ -6,23 +6,23 @@
 
 ## Component responsibilities
 
-| Layer | Target components | Responsibility |
-| --- | --- | --- |
-| Ingestion | Python source adapters; NiFi when justified | Download, route, normalize source envelopes, retain provenance |
-| Event contracts | Versioned schemas, schema registry | Validate producer/consumer contracts and compatibility |
-| Event backbone | Apache Kafka | Retained, partitioned events and independent consumer groups |
-| Streaming | Apache Flink | Event-time aggregation, late events, state, checkpoints, anomaly candidates |
-| Batch | Apache Spark / Spark SQL | Bronze-to-Silver cleaning, joins, feature groundwork, backfills, and distributed benchmarks |
-| Lakehouse | Apache Iceberg, Parquet, shared catalog | Bronze/Silver/Gold tables, table metadata, snapshots, evolution |
-| Object storage | MinIO locally; cloud object storage later | Raw landing files, warehouse data, and durable artifacts |
-| Interactive query | Trino; DuckDB for local inspection/comparison | Bounded analytical queries; controlled single-node baseline |
-| SQL modelling | Proposed dbt-trino from Stage 2 | Silver-to-Gold models, tests and generated SQL lineage; adapter validation required |
-| Orchestration | Apache Airflow | Scheduled ingestion, validation, batch jobs, training, evaluation |
-| Quality | Code/business rules; dbt tests; Great Expectations if needed | Validation gates and quarantine decisions |
-| Serving | Redis, FastAPI, Next.js/TypeScript | Current state, APIs, and user interface |
-| ML | Baselines, XGBoost/LightGBM, optional PyTorch model, MLflow | Forecasts, anomalies, experiment and model traceability |
-| Metadata | PostgreSQL | Airflow and application metadata; other service metadata if selected |
-| Operations | Prometheus, Grafana, OpenTelemetry, proposed Loki | Metrics, dashboards, instrumentation, and centralized logs |
+| Layer             | Target components                                            | Responsibility                                                                              |
+| ----------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------- |
+| Ingestion         | Python source adapters; NiFi when justified                  | Download, route, normalize source envelopes, retain provenance                              |
+| Event contracts   | Versioned schemas, schema registry                           | Validate producer/consumer contracts and compatibility                                      |
+| Event backbone    | Apache Kafka                                                 | Retained, partitioned events and independent consumer groups                                |
+| Streaming         | Apache Flink                                                 | Event-time aggregation, late events, state, checkpoints, anomaly candidates                 |
+| Batch             | Apache Spark / Spark SQL                                     | Bronze-to-Silver cleaning, joins, feature groundwork, backfills, and distributed benchmarks |
+| Lakehouse         | Apache Iceberg, Parquet, shared catalog                      | Bronze/Silver/Gold tables, table metadata, snapshots, evolution                             |
+| Object storage    | MinIO locally; cloud object storage later                    | Raw landing files, warehouse data, and durable artifacts                                    |
+| Interactive query | Trino; DuckDB for local inspection/comparison                | Bounded analytical queries; controlled single-node baseline                                 |
+| SQL modelling     | Proposed dbt-trino from Stage 2                              | Silver-to-Gold models, tests and generated SQL lineage; adapter validation required         |
+| Orchestration     | Apache Airflow                                               | Scheduled ingestion, validation, batch jobs, training, evaluation                           |
+| Quality           | Code/business rules; dbt tests; Great Expectations if needed | Validation gates and quarantine decisions                                                   |
+| Serving           | Redis, FastAPI, Next.js/TypeScript                           | Current state, APIs, and user interface                                                     |
+| ML                | Baselines, XGBoost/LightGBM, optional PyTorch model, MLflow  | Forecasts, anomalies, experiment and model traceability                                     |
+| Metadata          | PostgreSQL                                                   | Airflow and application metadata; other service metadata if selected                        |
+| Operations        | Prometheus, Grafana, OpenTelemetry, proposed Loki            | Metrics, dashboards, instrumentation, and centralized logs                                  |
 
 Iceberg is a table format, MinIO stores objects, and the catalog coordinates table metadata. These are separate responsibilities. Engines access both the catalog and object storage; a catalog is not a proxy through which all data bytes flow. The catalog implementation and shared-engine compatibility must be settled for the foundation milestone.
 
@@ -70,15 +70,15 @@ Contracts, a schema registry, Redis, and Loki are proposed target additions from
 
 The logical architecture must support a larger deployment independently of the local profile. Local byte/RAM budgets constrain experiments and retention on this host; they do not become hard-coded API, table, city or topology limits.
 
-| Boundary | Stable interface | Expansion mechanism |
-| --- | --- | --- |
-| Sources | Discovery/manifest, source version, canonical adapter, quality result | Add adapters/cities without embedding source-specific rules in serving code |
-| Storage and catalog | Logical table names, snapshot semantics, object-store/catalog configuration | Move endpoints and identities; validate connectors, migrate metadata/data and test restore |
-| Processing | Versioned contracts, explicit table owners, partition/window semantics | Increase worker/partition counts through configuration and measured rebalance/recovery tests |
-| Orchestration | Parameterized source, period, release and run identity | Schedule latest refresh and bounded historical backfills independently |
-| Serving | Versioned API/export schemas, freshness/coverage metadata | Static exports, query APIs or a curated database behind the same product semantics |
-| ML and agent | Feature/model versions and authorized tool contracts | Add runtimes/providers without bypassing evaluation, permissions or evidence |
-| Operations | Common run/request IDs, metrics and resource policies | Environment-specific retention, budgets, scaling and recovery objectives |
+| Boundary            | Stable interface                                                            | Expansion mechanism                                                                          |
+| ------------------- | --------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| Sources             | Discovery/manifest, source version, canonical adapter, quality result       | Add adapters/cities without embedding source-specific rules in serving code                  |
+| Storage and catalog | Logical table names, snapshot semantics, object-store/catalog configuration | Move endpoints and identities; validate connectors, migrate metadata/data and test restore   |
+| Processing          | Versioned contracts, explicit table owners, partition/window semantics      | Increase worker/partition counts through configuration and measured rebalance/recovery tests |
+| Orchestration       | Parameterized source, period, release and run identity                      | Schedule latest refresh and bounded historical backfills independently                       |
+| Serving             | Versioned API/export schemas, freshness/coverage metadata                   | Static exports, query APIs or a curated database behind the same product semantics           |
+| ML and agent        | Feature/model versions and authorized tool contracts                        | Add runtimes/providers without bypassing evaluation, permissions or evidence                 |
+| Operations          | Common run/request IDs, metrics and resource policies                       | Environment-specific retention, budgets, scaling and recovery objectives                     |
 
 Start as a small repository with clear modules and configuration; modularity does not require a microservice for every function. Avoid shared mutable files, fixed local paths, embedded endpoints or implicit global single-city assumptions. Separate deployment configuration from business transformations. Source discovery and period selection belong outside transform logic.
 

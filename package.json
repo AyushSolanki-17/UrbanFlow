@@ -1,0 +1,36 @@
+{
+  "name": "urbanflow-repository-tools",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Repository quality tools; application runtimes are introduced separately.",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "prepare": "husky",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint:md": "markdownlint-cli2",
+    "lint:html": "htmlhint --config .htmlhintrc \"docs/*.html\" \"docs/diagrams/*.html\"",
+    "lint": "npm run lint:md && npm run lint:html",
+    "check": "npm run format:check && npm run lint"
+  },
+  "lint-staged": {
+    "*.md": [
+      "prettier --write",
+      "markdownlint-cli2 --no-globs"
+    ],
+    "*.html": [
+      "prettier --write",
+      "htmlhint --config .htmlhintrc"
+    ],
+    "*.{json,jsonc,yaml,yml,css,js,ts,tsx}": "prettier --write"
+  },
+  "devDependencies": {
+    "htmlhint": "1.9.2",
+    "husky": "9.1.7",
+    "lint-staged": "17.5.1",
+    "markdownlint-cli2": "0.23.3",
+    "prettier": "3.9.9"
+  }
+}

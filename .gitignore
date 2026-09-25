@@ -219,3 +219,8 @@ __marimo__/
 
 # Internal docs
 docs/internal
+
+# Repository quality tooling
+node_modules/
+coverage/
+.husky/_/

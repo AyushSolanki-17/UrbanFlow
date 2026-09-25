@@ -22,11 +22,11 @@ Bundled logos come from [Simple Icons v16.0.0](https://github.com/simple-icons/s
 
 These are native, uncompressed diagrams.net/draw.io XML files. Open a `.drawio` file in the desktop editor or import it into diagrams.net. Shapes, labels, connectors, and positions are editable; no images or external assets are required.
 
-| Diagram | View |
-| --- | --- |
-| [Platform](platform.drawio) | Sources, historical and streaming paths, lakehouse, serving, and control responsibilities |
-| [ML and serving](ml-and-serving.drawio) | Training lifecycle, request routing, SQL guard, tools, and evidence |
-| [Deployment](deployment.drawio) | Local profiles, bounded public demo, and proposed production topology |
+| Diagram                                 | View                                                                                      |
+| --------------------------------------- | ----------------------------------------------------------------------------------------- |
+| [Platform](platform.drawio)             | Sources, historical and streaming paths, lakehouse, serving, and control responsibilities |
+| [ML and serving](ml-and-serving.drawio) | Training lifecycle, request routing, SQL guard, tools, and evidence                       |
+| [Deployment](deployment.drawio)         | Local profiles, bounded public demo, and proposed production topology                     |
 
 These broader reference diagrams retain the original ML/agent and deployment scope; the primary HTML and current Markdown explain the newer modelling, lifecycle and resource decisions. All diagrams show planned architecture. A solid connector follows the arrow's labeled relationship. Dashed connectors represent metadata/control relationships; dashed boxes identify optional or unresolved components. Platform data arrows show data/result movement; serving request arrows show calls. The deployment diagram compares tiers, rather than implying the tiers all operate simultaneously.
 

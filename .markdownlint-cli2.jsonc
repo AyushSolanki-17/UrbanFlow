@@ -1,0 +1,11 @@
+{
+  "globs": ["**/*.md", ".agents/skills/**/SKILL.md"],
+  "ignores": ["docs/internal/**", "node_modules/**"],
+  "config": {
+    "default": true,
+    // Prose is kept on logical lines; tables and URLs may be long.
+    "MD013": false,
+    // Prettier aligns tables; require consistent pipe spacing without a second formatter.
+    "MD060": { "style": "aligned" },
+  },
+}

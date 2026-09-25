@@ -28,16 +28,16 @@ Inference responses should identify the model version, forecast origin, horizon,
 
 All endpoints below are a design sketch under `/api/v1`, not an existing OpenAPI contract.
 
-| Route | Responsibility |
-| --- | --- |
-| `/demand` | Current or aggregated zone demand with event-time and freshness metadata |
-| `/forecast` | Versioned demand predictions for supported horizons |
-| `/anomalies` | Scores/candidates with severity and supporting measurements |
-| `/zones` | City-scoped spatial references |
-| `/analytics` | Bounded historical queries through approved interfaces |
-| `/agent` | Authorized natural-language analytics requests |
-| `/health` | Service/dependency health with limited public detail |
-| `/metrics` | Operational metrics, protected from public access |
+| Route        | Responsibility                                                           |
+| ------------ | ------------------------------------------------------------------------ |
+| `/demand`    | Current or aggregated zone demand with event-time and freshness metadata |
+| `/forecast`  | Versioned demand predictions for supported horizons                      |
+| `/anomalies` | Scores/candidates with severity and supporting measurements              |
+| `/zones`     | City-scoped spatial references                                           |
+| `/analytics` | Bounded historical queries through approved interfaces                   |
+| `/agent`     | Authorized natural-language analytics requests                           |
+| `/health`    | Service/dependency health with limited public detail                     |
+| `/metrics`   | Operational metrics, protected from public access                        |
 
 Specify authentication, authorization, validation, pagination, rate limits, timeouts, bounded retries, structured errors, and request IDs when implementing the API. Route Redis reads for current state and Trino queries for historical analytics. Make stale/unavailable results visible instead of fabricating defaults.
 

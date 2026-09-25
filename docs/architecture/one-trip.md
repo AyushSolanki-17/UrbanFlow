@@ -4,14 +4,14 @@
 
 **Status:** walkthrough to implement, not an execution trace. Consider a hypothetical Yellow Taxi record picked up in zone 161 at 18:31:42 local source time and dropped off in zone 237. Any ID assigned below is a project identity; do not assume TLC provides a unique trip ID.
 
-| Boundary | Physical representation and action | Evidence to retain |
-| --- | --- | --- |
-| Source → landing | Download an existing monthly Parquet file; store immutable source bytes in MinIO | Source URI, period, checksum, byte/row counts, retrieval time |
-| Landing → Bronze | A selected writer creates or safely imports source-shaped Iceberg data files; a committed snapshot makes them table data | Ingestion run, source reference, table and snapshot IDs, writer version |
-| Bronze → Silver | Spark reads needed columns, validates timestamps/zones/units, assigns stable identity and writes normalized rows; invalid rows retain quarantine evidence | Input/output snapshots, code/rule versions, accepted/rejected/duplicate counts |
-| Silver → Gold | Stage 1 selected writer, then proposed dbt-trino SQL, counts accepted pickups at `(city, zone, hour)` | Model version, dependencies, grain, reconciliation and quality results |
-| Gold → query | Trino resolves table metadata through the catalog and reads selected objects | Query ID, snapshot, filters, result and scan measurements |
-| Gold → export → portal | Export validated aggregates and metadata into a versioned bounded release; browser reads published JSON | Export ID, source snapshots, time coverage, generation time, checksums |
+| Boundary               | Physical representation and action                                                                                                                        | Evidence to retain                                                             |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| Source → landing       | Download an existing monthly Parquet file; store immutable source bytes in MinIO                                                                          | Source URI, period, checksum, byte/row counts, retrieval time                  |
+| Landing → Bronze       | A selected writer creates or safely imports source-shaped Iceberg data files; a committed snapshot makes them table data                                  | Ingestion run, source reference, table and snapshot IDs, writer version        |
+| Bronze → Silver        | Spark reads needed columns, validates timestamps/zones/units, assigns stable identity and writes normalized rows; invalid rows retain quarantine evidence | Input/output snapshots, code/rule versions, accepted/rejected/duplicate counts |
+| Silver → Gold          | Stage 1 selected writer, then proposed dbt-trino SQL, counts accepted pickups at `(city, zone, hour)`                                                     | Model version, dependencies, grain, reconciliation and quality results         |
+| Gold → query           | Trino resolves table metadata through the catalog and reads selected objects                                                                              | Query ID, snapshot, filters, result and scan measurements                      |
+| Gold → export → portal | Export validated aggregates and metadata into a versioned bounded release; browser reads published JSON                                                   | Export ID, source snapshots, time coverage, generation time, checksums         |
 
 MinIO is storage; Parquet is the file representation; Iceberg adds table metadata and snapshots; the catalog locates/co-ordinates table metadata. These are not four successive network services. A Parquet file outside a committed table is not automatically an Iceberg row. Preserve source files separately from managed table files unless a tested import/ownership policy permits safe sharing.
 

@@ -6,15 +6,15 @@
 
 ## Source plan
 
-| Source | Intended use | Discovery reference |
-| --- | --- | --- |
-| NYC TLC Yellow Taxi, HVFHV; Green/FHV as useful | Primary mobility workload | [TLC trip records and taxi zones](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page) |
-| NOAA/NCEI ISD | Relevant weather stations and periods | [Integrated Surface Database](https://www.ncei.noaa.gov/products/land-based-station/integrated-surface-database) |
-| NYC permitted events | Event timing, location, and type | [Historical events](https://data.cityofnewyork.us/City-Government/NYC-Permitted-Event-Information-Historical/bkfu-528j/data), [current events](https://data.cityofnewyork.us/City-Government/NYC-Permitted-Event-Information/tvpp-9vvx) |
-| NYC traffic volume | Independent mobility signal | [Automated counts](https://data.cityofnewyork.us/Transportation/Automated-Traffic-Volume-Counts/7ym2-wayt), [historical counts](https://data.cityofnewyork.us/Transportation/Traffic-Volume-Counts-Historical-/btm5-ppia) |
-| TLC geography | Zone lookup, polygons, centroids, spatial joins | TLC link above |
-| Chicago Taxi Trips | Second-city portability | [Chicago source cited in planning](https://data.cityofchicago.org/Transportation/Taxi-Trips/wrvz-psew) |
-| NYC collisions, optional | Disruption context | [Motor Vehicle Collisions](https://data.cityofnewyork.us/Public-Safety/Motor-Vehicle-Collisions-Crashes/h9gi-nx95) |
+| Source                                          | Intended use                                    | Discovery reference                                                                                                                                                                                                                     |
+| ----------------------------------------------- | ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| NYC TLC Yellow Taxi, HVFHV; Green/FHV as useful | Primary mobility workload                       | [TLC trip records and taxi zones](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page)                                                                                                                                         |
+| NOAA/NCEI ISD                                   | Relevant weather stations and periods           | [Integrated Surface Database](https://www.ncei.noaa.gov/products/land-based-station/integrated-surface-database)                                                                                                                        |
+| NYC permitted events                            | Event timing, location, and type                | [Historical events](https://data.cityofnewyork.us/City-Government/NYC-Permitted-Event-Information-Historical/bkfu-528j/data), [current events](https://data.cityofnewyork.us/City-Government/NYC-Permitted-Event-Information/tvpp-9vvx) |
+| NYC traffic volume                              | Independent mobility signal                     | [Automated counts](https://data.cityofnewyork.us/Transportation/Automated-Traffic-Volume-Counts/7ym2-wayt), [historical counts](https://data.cityofnewyork.us/Transportation/Traffic-Volume-Counts-Historical-/btm5-ppia)               |
+| TLC geography                                   | Zone lookup, polygons, centroids, spatial joins | TLC link above                                                                                                                                                                                                                          |
+| Chicago Taxi Trips                              | Second-city portability                         | [Chicago source cited in planning](https://data.cityofchicago.org/Transportation/Taxi-Trips/wrvz-psew)                                                                                                                                  |
+| NYC collisions, optional                        | Disruption context                              | [Motor Vehicle Collisions](https://data.cityofnewyork.us/Public-Safety/Motor-Vehicle-Collisions-Crashes/h9gi-nx95)                                                                                                                      |
 
 Confirm dataset version, coverage, access, license/attribution requirements, and publication lag before ingestion. Download only relevant weather stations and periods. Do not assume every city supplies every context category.
 
@@ -22,17 +22,17 @@ Confirm dataset version, coverage, access, license/attribution requirements, and
 
 The source spec alternates between `pickup_time` and `pickup_timestamp`, and between location and zone fields. This documentation proposes the names below; adapters must explicitly map source names. Types and null policies must be formalized before implementation.
 
-| Field | Meaning / contract requirement |
-| --- | --- |
-| `trip_id` | Stable source ID or documented deterministic identity |
-| `city` | City namespace, required even if zone IDs look globally unique |
-| `service_type` | Controlled source/service category |
-| `pickup_timestamp`, `dropoff_timestamp` | Normalize with documented source timezone and DST handling |
-| `pickup_location`, `dropoff_location` | City-specific spatial representation, mapped to canonical zones when possible |
-| `pickup_zone`, `dropoff_zone` | Proposed normalized zone references; namespace by city |
-| `passenger_count` | Nullable where absent; valid domain defined per source |
-| `trip_distance` | Normalize units and retain original representation in Bronze |
-| `fare_amount` | Define currency, meaning, and source-specific exceptions |
+| Field                                   | Meaning / contract requirement                                                |
+| --------------------------------------- | ----------------------------------------------------------------------------- |
+| `trip_id`                               | Stable source ID or documented deterministic identity                         |
+| `city`                                  | City namespace, required even if zone IDs look globally unique                |
+| `service_type`                          | Controlled source/service category                                            |
+| `pickup_timestamp`, `dropoff_timestamp` | Normalize with documented source timezone and DST handling                    |
+| `pickup_location`, `dropoff_location`   | City-specific spatial representation, mapped to canonical zones when possible |
+| `pickup_zone`, `dropoff_zone`           | Proposed normalized zone references; namespace by city                        |
+| `passenger_count`                       | Nullable where absent; valid domain defined per source                        |
+| `trip_distance`                         | Normalize units and retain original representation in Bronze                  |
+| `fare_amount`                           | Define currency, meaning, and source-specific exceptions                      |
 
 Keep source-specific fields in Bronze or a documented extension, rather than inventing values to make city schemas identical. Geography mappings must be versioned when boundaries change.
 
@@ -42,14 +42,14 @@ A streaming envelope additionally needs `event_id`, source identity, schema vers
 
 Proposed topic names, normalized to the plural names from the main spec:
 
-| Topic | Payload purpose |
-| --- | --- |
-| `mobility.yellow` | Yellow Taxi trips |
-| `mobility.hvfhv` | High-volume for-hire trips |
-| `weather.observations` | Weather context |
-| `city.events` | Permitted-event context |
-| `traffic.observations` | Traffic measurements |
-| `mobility.anomalies` | Derived anomaly events |
+| Topic                  | Payload purpose            |
+| ---------------------- | -------------------------- |
+| `mobility.yellow`      | Yellow Taxi trips          |
+| `mobility.hvfhv`       | High-volume for-hire trips |
+| `weather.observations` | Weather context            |
+| `city.events`          | Permitted-event context    |
+| `traffic.observations` | Traffic measurements       |
+| `mobility.anomalies`   | Derived anomaly events     |
 
 Each versioned contract should declare owner, schema, event-time field, source cadence, freshness expectation, nullability, ranges, units, compatibility policy, partition key, identity, retention, and quality rules. Store these under proposed `data-contracts/` and `schemas/` directories when implementation begins.
 
@@ -57,12 +57,12 @@ Avro versus Protobuf and the registry implementation remain open. Validate compa
 
 ## Lakehouse layers
 
-| Layer | Planned tables | Publication rule |
-| --- | --- | --- |
-| Bronze | `raw_yellow_trips`, `raw_hvfhv_trips`, `raw_weather`, `raw_events`, `raw_traffic` | Source fidelity and provenance retained |
-| Silver | `clean_trips`, `normalized_weather`, `normalized_events`, `normalized_traffic`, `geographic_reference` | Schema, quality, units, and location normalization applied |
-| Gold | `zone_hour_demand`, `zone_hour_features`, `forecasting_features`, `mobility_anomalies`, `model_predictions` | Business grain, feature versions, and lineage documented |
-| Optional Gold | `travel_time_features` | Created only if travel-time work is included |
+| Layer         | Planned tables                                                                                              | Publication rule                                           |
+| ------------- | ----------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| Bronze        | `raw_yellow_trips`, `raw_hvfhv_trips`, `raw_weather`, `raw_events`, `raw_traffic`                           | Source fidelity and provenance retained                    |
+| Silver        | `clean_trips`, `normalized_weather`, `normalized_events`, `normalized_traffic`, `geographic_reference`      | Schema, quality, units, and location normalization applied |
+| Gold          | `zone_hour_demand`, `zone_hour_features`, `forecasting_features`, `mobility_anomalies`, `model_predictions` | Business grain, feature versions, and lineage documented   |
+| Optional Gold | `travel_time_features`                                                                                      | Created only if travel-time work is included               |
 
 `zone_hour_demand` has a proposed grain of `(city, zone, hour)` (all supported services combined; service breakdowns require explicit columns or a separate service-grain product) and measures such as trip count, average distance/fare, and HVFHV count. Weather, event counts, and traffic require explicit aggregation and join rules before inclusion; joining raw context rows directly can multiply trip counts.
 
@@ -88,14 +88,14 @@ Each source manifest needs a dataset/source ID, source period, discovered releas
 
 Distinguish event time, source release time, observed-at time, ingested-at time and curated publication time. Published tables/exports expose coverage, source versions and freshness. A historical experiment pins snapshots and rules; a latest view advances only after validation. See [data lifecycle](../architecture/data-lifecycle.md) for overlap, corrections and retention.
 
-| Product | Writer / grain | Correction boundary |
-| --- | --- | --- |
-| Bronze source tables | Ingestion writer; source release and original record | New immutable release plus manifest; preserve provenance |
-| `clean_trips` and normalized context | Spark after foundation spike | Rebuild/merge affected release partitions under a validated identity policy |
-| `zone_hour_demand` and Gold models | Stage 1 selected writer, then proposed dbt-trino; `(city, zone, hour)` | Recompute affected windows; publish a new snapshot/version |
-| `rt.zone_5min` | Flink; `(city, zone, window_start, replay_run_id)` for isolated experiments | Defined revision/late-event policy; no concurrent batch writer |
-| `rt.anomalies` | Flink operational candidates | Candidate identity, rule version and window revision; distinct from ML scores |
-| Public export | Export job over validated snapshots | Whole versioned release, with rollback to a retained valid export |
+| Product                              | Writer / grain                                                              | Correction boundary                                                           |
+| ------------------------------------ | --------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| Bronze source tables                 | Ingestion writer; source release and original record                        | New immutable release plus manifest; preserve provenance                      |
+| `clean_trips` and normalized context | Spark after foundation spike                                                | Rebuild/merge affected release partitions under a validated identity policy   |
+| `zone_hour_demand` and Gold models   | Stage 1 selected writer, then proposed dbt-trino; `(city, zone, hour)`      | Recompute affected windows; publish a new snapshot/version                    |
+| `rt.zone_5min`                       | Flink; `(city, zone, window_start, replay_run_id)` for isolated experiments | Defined revision/late-event policy; no concurrent batch writer                |
+| `rt.anomalies`                       | Flink operational candidates                                                | Candidate identity, rule version and window revision; distinct from ML scores |
+| Public export                        | Export job over validated snapshots                                         | Whole versioned release, with rollback to a retained valid export             |
 
 The `rt` schema is a logical namespace to validate with the chosen catalog. Hourly demand retains the original canonical name `zone_hour_demand`; `zone_hourly_demand` in the raw review is an alias, not a second table. Proposed daily/revenue/performance marts require grains and acceptance checks before creation. Dead-letter topic names and retention remain part of the streaming contract decision.
 

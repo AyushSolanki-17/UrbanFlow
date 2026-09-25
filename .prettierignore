@@ -1,0 +1,8 @@
+# Raw planning inputs and third-party assets are not maintained source.
+docs/internal/
+docs/diagrams/assets/
+node_modules/
+coverage/
+dist/
+# npm maintains its lockfile formatting.
+package-lock.json

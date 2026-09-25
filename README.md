@@ -2,7 +2,9 @@
 
 A planned open-source mobility lakehouse for historical and latest published data, streaming replay, distributed analytics, forecasting and grounded natural-language tools.
 
-**Status:** architecture documentation; implementation has not started.
+**Status:** architecture documentation and repository quality tooling; application implementation has not started.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, formatting, linting, pre-commit hooks and CI. Project-specific agent guidance lives in [AGENTS.md](AGENTS.md).
 
 Read the [plain-language project guide and proposed folder structure](docs/project-guide.html) for an approachable explanation of what we will build and a layout you can comment on.
 
