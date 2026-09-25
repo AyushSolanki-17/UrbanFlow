@@ -2,6 +2,10 @@
 
 [Documentation index](../README.md)
 
+## Plain-language project guide
+
+The separate [project guide](../project-guide.html) explains the plan in plain technical language, including historical/latest data, build order, tool roles and a proposed repository layout. Expand the folder explanations for detail. It is self-contained and works offline; the folder structure remains a proposal for feedback.
+
 ## Primary HTML architecture review
 
 Open [UrbanFlow architecture review](architecture.html) directly in a browser. This adapts the supplied internal HTML, retaining its transit-map layout, clickable stations, path filters, one-trip walkthrough and review structure. It adds the reconciled eight-stage roadmap, historical/latest lifecycle, modular expansion boundaries and local resource policy. It is self-contained with no build step or external assets.
