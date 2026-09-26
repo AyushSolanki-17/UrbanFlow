@@ -3,6 +3,8 @@
 # Budgets use decimal GB and are not yet enforced by ingestion jobs.
 [local]
 data_dir = "../.local/data"
+# Set credentials in URBANFLOW_METADATA_DATABASE_URL or your local PostgreSQL password file.
+metadata_database_url = "postgresql://urbanflow@localhost:5432/urbanflow"
 working_data_target_gb = 10
 working_data_peak_gb = 20
 stack_memory_budget_gb = 8

@@ -11,6 +11,7 @@ from urbanflow.config import load_settings
 PROFILE = """\
 [local]
 data_dir = "runtime"
+metadata_database_url = "postgresql://urbanflow@localhost:5432/urbanflow"
 working_data_target_gb = 10
 working_data_peak_gb = 20
 stack_memory_budget_gb = 8
@@ -30,6 +31,7 @@ def test_paths_are_relative_to_profile_and_check_has_no_side_effects(tmp_path, m
     monkeypatch.chdir(elsewhere)
     settings = load_settings(path)
     assert settings.data_dir == tmp_path / "runtime"
+    assert settings.metadata_database_url == "postgresql://urbanflow@localhost:5432/urbanflow"
     assert not settings.data_dir.exists()
 
 
@@ -74,11 +76,32 @@ def test_environment_can_expand_without_changing_code(tmp_path):
     assert load_settings(path).working_data_peak_gb == 200
 
 
+def test_database_url_can_be_supplied_through_environment(tmp_path, monkeypatch):
+    path = write_profile(tmp_path)
+    monkeypatch.setenv(
+        "URBANFLOW_METADATA_DATABASE_URL",
+        "postgresql://secret-user:secret-password@db.example/urbanflow",
+    )
+    assert load_settings(path).metadata_database_url.endswith("@db.example/urbanflow")
+
+
 def test_cli_reports_validated_settings(tmp_path, capsys):
     assert main(["check-config", "--config", str(write_profile(tmp_path))]) == 0
     output = json.loads(capsys.readouterr().out)
     assert output["working_data_peak_gb"] == 20
     assert output["data_dir"] == str(tmp_path / "runtime")
+    assert output["metadata_database_url"] == "<redacted>"
+
+
+def test_cli_redacts_database_credentials_from_environment(tmp_path, capsys, monkeypatch):
+    monkeypatch.setenv(
+        "URBANFLOW_METADATA_DATABASE_URL",
+        "postgresql://secret-user:secret-password@db.example/urbanflow",
+    )
+    assert main(["check-config", "--config", str(write_profile(tmp_path))]) == 0
+    output = capsys.readouterr().out
+    assert "secret-password" not in output
+    assert json.loads(output)["metadata_database_url"] == "<redacted>"
 
 
 @pytest.mark.parametrize(
