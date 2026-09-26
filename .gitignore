@@ -230,3 +230,6 @@ coverage/
 configs/local.toml
 .env.*
 !.env.example
+
+# Outputs
+outputs/
