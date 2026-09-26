@@ -9,6 +9,8 @@ Read `docs/data-model/contracts.md` and `docs/architecture/data-lifecycle.md`, p
 
 ## Data invariants
 
+- Write Python docstrings in Google style. Use comments sparingly to explain intent, constraints, or non-obvious decisions; write them as complete sentences and do not restate the code.
+
 - Parameterize source/city, period, release and run identity. Separate source-specific discovery/mapping from reusable ingestion and publication logic.
 - Distinguish event time, source publication time, ingestion time and curated publication time. Record coverage gaps; absent data is not zero demand.
 - Preserve immutable source-release provenance and checksums. Checksums identify content, not revision order. Do not deduplicate legitimate equal-valued rows solely by content.
@@ -20,7 +22,7 @@ Read `docs/data-model/contracts.md` and `docs/architecture/data-lifecycle.md`, p
 
 ## Evidence proportional to the feature
 
-Use maintained tools from `CONTRIBUTING.md`. Introduce Ruff and pytest with the first Python code, not a bespoke test runner. Use small deterministic fixtures for repeat input, source correction, failed publication and stale competing jobs when those paths change. Streaming work additionally tests duplicates, late events and restart reconciliation.
+Use the test-scope rule in `AGENTS.md` and maintained tools from `CONTRIBUTING.md`. Choose small deterministic cases for the invariants touched by the change: repeat input, source correction, failed publication, or stale competing jobs. Add streaming cases for duplicates, late events, or restart reconciliation only when those behaviors are implemented or changed. Do not build fixtures or suites for planned pipeline stages.
 
 Select/pin catalog, writer and connector versions through a small compatibility test before broad scaffolding or full downloads. Do not require Kafka/Flink to ingest a historical Parquet file. Benchmark only with the methodology in `docs/operations/benchmarks.md`; record dataset and software identities, resource peaks and result correctness.
 

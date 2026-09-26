@@ -8,6 +8,7 @@ UrbanFlow is a planned open-source urban mobility platform combining a lakehouse
 
 | Document                                                       | Covers                                                                                                                       |
 | -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| [UrbanFlow, phase by phase](build-phases.md)                   | Beginner-friendly build sequence, technology roles, current evidence, and first implementation slice                         |
 | [Plain-language project guide](project-guide.html)             | What we will build, how data moves, proposed folder structure and feedback questions                                         |
 | [Contributor / agent context](context.md)                      | Current baseline, constraints, reading order and next work                                                                   |
 | [Historical and latest data](architecture/data-lifecycle.md)   | Release discovery, corrections, backfills, publication and retention                                                         |

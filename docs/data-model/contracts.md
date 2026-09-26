@@ -2,7 +2,7 @@
 
 [Documentation index](../README.md)
 
-**Status:** proposed logical contracts. Schemas, SQL DDL, topic configuration, and compatibility tests are not implemented yet.
+**Status:** proposed logical contracts. A period-based Yellow Taxi downloader and PostgreSQL provenance store are implemented; canonical schemas, table publication, shared-catalog and Trino compatibility remain unimplemented.
 
 ## Source plan
 
@@ -17,6 +17,44 @@
 | NYC collisions, optional                        | Disruption context                              | [Motor Vehicle Collisions](https://data.cityofnewyork.us/Public-Safety/Motor-Vehicle-Collisions-Crashes/h9gi-nx95)                                                                                                                      |
 
 Confirm dataset version, coverage, access, license/attribution requirements, and publication lag before ingestion. Download only relevant weather stations and periods. Do not assume every city supplies every context category.
+
+### Initial Yellow Taxi sample evidence
+
+Use TLC's **January 2024 Yellow Taxi Trip Records** as the fixed compatibility-spike sample. The source period is `2024-01`; TLC does not identify this monthly object with a separate numbered release. TLC says monthly files are typically published with a two-month delay and notes that `cbd_congestion_fee` was added starting with 2025 data. January 2024 therefore provides a stable pre-change schema candidate, not a guarantee that other periods share it. Source: [TLC Trip Record Data](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page), file [yellow_tripdata_2024-01.parquet](https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_2024-01.parquet), downloaded 2026-09-26.
+
+The dataset is presented through NYC Open Data. The portal's [Terms of Use](https://data.cityofnewyork.us/stories/s/Terms-of-Use/k9k7-3cje/) and NYC's [open-data legal policy](https://codelibrary.amlegal.com/codes/newyorkcity/latest/NYCadmin/0-0-0-204577) provide the governing terms; NYC describes public datasets as usable without restrictions, while asking users to identify source and version and describe modifications. TLC does not attach a distinct license identifier to this monthly Parquet file, so do not label it CC0 or another formal license. Retain attribution to NYC TLC, source period/version and any modifications in derived publications. The website terms also disclaim warranties. Recheck terms before redistribution.
+
+Retrieval record: 49,961,641 bytes; SHA-256 `c4d59da7bbc8abaeeeb1727947ee93d9891a71acb42854bd80db1571b2030510`; stored at `.local/source-samples/nyc-tlc/yellow_tripdata_2024-01.parquet` (ignored). The complete file has 2,964,624 rows and 3 Parquet row groups. Its 19 columns are `VendorID`, `tpep_pickup_datetime`, `tpep_dropoff_datetime`, `passenger_count`, `trip_distance`, `RatecodeID`, `store_and_fwd_flag`, `PULocationID`, `DOLocationID`, `payment_type`, `fare_amount`, `extra`, `mta_tax`, `tip_amount`, `tolls_amount`, `improvement_surcharge`, `total_amount`, `congestion_surcharge`, and `Airport_fee`. The two trip-time columns are Parquet `timestamp[us]` without a timezone; sampled values are naive local-looking wall times. Normalize source timezone/DST only under an explicit contract; do not silently interpret these as UTC. Zone fields are integer TLC Taxi Zone IDs (pickup `PULocationID`, dropoff `DOLocationID`), not names or coordinates.
+
+The following definitions follow TLC's [Yellow Taxi Trip Records Data Dictionary](https://www.nyc.gov/assets/tlc/downloads/pdf/data_dictionary_trip_records_yellow.pdf). Types are the observed Arrow/Parquet types in this January 2024 file, not selected canonical Silver types. “Nullable” reflects whether any nulls were present in this complete file.
+
+| Source column           | Description                                                                                                 | Observed Parquet type         | Nulls in file |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------- | ----------------------------- | ------------: |
+| `VendorID`              | Code identifying the TPEP provider that submitted the trip record.                                          | `int32`                       |             0 |
+| `tpep_pickup_datetime`  | Date and time the taxi meter was engaged.                                                                   | `timestamp[us]` (no timezone) |             0 |
+| `tpep_dropoff_datetime` | Date and time the taxi meter was disengaged.                                                                | `timestamp[us]` (no timezone) |             0 |
+| `passenger_count`       | Driver-reported number of passengers.                                                                       | `int64`                       |       140,162 |
+| `trip_distance`         | Distance reported by the taximeter, in miles.                                                               | `double`                      |             0 |
+| `RatecodeID`            | Final rate code in effect at the end of the trip. TLC documents `99` as null/unknown.                       | `int64`                       |       140,162 |
+| `store_and_fwd_flag`    | `Y` if the trip was held in vehicle memory before sending to the vendor due to connectivity; `N` otherwise. | `large_string`                |       140,162 |
+| `PULocationID`          | TLC Taxi Zone where the taximeter was engaged (pickup zone ID).                                             | `int32`                       |             0 |
+| `DOLocationID`          | TLC Taxi Zone where the taximeter was disengaged (dropoff zone ID).                                         | `int32`                       |             0 |
+| `payment_type`          | Code identifying the payment method or outcome, such as credit card, cash, dispute, or voided trip.         | `int64`                       |             0 |
+| `fare_amount`           | Time-and-distance fare calculated by the meter, in USD.                                                     | `double`                      |             0 |
+| `extra`                 | Miscellaneous extras and surcharges, in USD.                                                                | `double`                      |             0 |
+| `mta_tax`               | MTA tax triggered by the metered rate, in USD.                                                              | `double`                      |             0 |
+| `tip_amount`            | Tip amount. Automatically populated for credit-card tips; cash tips are not included. USD.                  | `double`                      |             0 |
+| `tolls_amount`          | Total tolls paid for the trip, in USD.                                                                      | `double`                      |             0 |
+| `improvement_surcharge` | Taxi improvement surcharge assessed on trips, in USD.                                                       | `double`                      |             0 |
+| `total_amount`          | Total amount charged to the passenger, excluding cash tips, in USD.                                         | `double`                      |             0 |
+| `congestion_surcharge`  | Congestion surcharge collected for the trip, in USD.                                                        | `double`                      |       140,162 |
+| `Airport_fee`           | Fee for a pickup at LaGuardia or John F. Kennedy Airport, in USD.                                           | `double`                      |       140,162 |
+
+Full-file null counts were scanned with PyArrow 25.0.1. A 100-row projection round-tripped through a disposable local Iceberg table using PyIceberg 0.12.0 with PyArrow 25.0.1, a SQLite SQL catalog, and local filesystem data storage. This is evidence for local Iceberg write/read only. The temporary catalog is not selected as the shared Stage 1 catalog, and Trino compatibility remains open. The full Parquet file and spike scratch database remain under ignored `.local/` storage; they are not repository fixtures.
+
+The implemented command `uv run --locked urbanflow download-yellow-taxi --config configs/local.toml --period YYYY-MM` uses the direct URL pattern `https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_YYYY-MM.parquet`. A selected monthly file can therefore be downloaded entirely by Python without a browser, SDK or manual file selection. The caller supplies the period; discovery of the newest available month is not implemented. The base path is configured with `data_dir`. Files are placed under `bronze/raw/source=nyc_tlc/service=yellow/period=YYYY-MM/release=sha256-<digest>/yellow_tripdata_YYYY-MM.parquet`. Repeats reuse a verified local release. Use `--refresh` to check again for source corrections; changed bytes are retained under a new checksum path.
+
+The configured PostgreSQL database stores attempt history and immutable source releases. Attempt records include run ID, source ID, period, URL, status, timezone-aware UTC start/completion, retry count, destination, byte count, SHA-256, ETag, HTTP Last-Modified and error detail. Release records include checksum-derived release ID, retrieval time, path, size, checksum, ETag and HTTP Last-Modified. `row_count` and `schema_json` are nullable fields reserved for later validation. HTTP Last-Modified is not assumed to be the source publication timestamp. `MetadataRepository` defines the backend interface for reuse by other workflows.
 
 ## Canonical trip model
 

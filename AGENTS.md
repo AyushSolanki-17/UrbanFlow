@@ -2,7 +2,7 @@
 
 ## Current state
 
-Implemented: Python configuration/CLI boilerplate, unit tests, locked dependencies, documentation checks, pre-commit hooks and CI configuration. Data ingestion, lakehouse services, streaming, ML and the portal remain planned. Resource settings are validated planning budgets, not enforced admission controls.
+Implemented: Python configuration/CLI foundation, a period-based NYC Yellow Taxi downloader, a PostgreSQL metadata adapter, local unit tests, locked dependencies, documentation checks, pre-commit hooks and CI configuration. Lakehouse table publication, shared catalog integration, streaming, ML and the portal remain planned. Resource settings are validated planning budgets, not general admission controls.
 
 The next planned milestone is the Stage 1 catalog/writer compatibility spike and source contract. Follow the user's requested scope; do not implement the entire roadmap by default.
 
@@ -30,6 +30,7 @@ Curated Markdown defines intended design; code and recorded tests establish impl
 - Keep Python in `src/urbanflow/`, CLI orchestration in `cli.py`, configuration loading in `config/`, and unit tests in `tests/unit/`. Keep business logic independently testable. Add other directories only when their first feature needs them; the wider folder tree is proposed.
 - Use `uv run --locked` for project Python commands. Use `uv add` / `uv add --dev` for needed dependencies and retain `uv.lock`; retain `package-lock.json` for npm changes. Do not add a library or service merely because it appears in the target architecture.
 - Keep source periods, paths, endpoints and budgets configurable. Relative data paths resolve beside the TOML profile. Personal settings belong in ignored `configs/local.toml`; runtime data in ignored `.local/`. Never print secrets or commit datasets, internal notes, volumes or large artifacts.
+- Write Python docstrings in Google style. Use comments sparingly to explain intent, constraints, or non-obvious decisions; write them as complete sentences and do not restate the code.
 - Preserve historical and latest-source data together. Keep one writer per product, immutable provenance, explicit correction rules and pinned experiments. Do not infer duplicate trips solely from equal values. Use the pipeline skill before changing these semantics.
 - The local profile targets roughly 10 GB working data and a 20 GB peak ceiling on a 16 GB RAM host. These limits do not constrain canonical schemas or expanded deployments. Do not start full-stack services, large downloads or paid workloads merely to validate boilerplate.
 
@@ -47,7 +48,21 @@ Setup when missing or dependencies change: `npm ci` and `uv sync --locked`. Runt
 
 Use `npm run format` for Prettier and `npm run format:python` for Ruff formatting. During iteration, run targeted tests such as `uv run --locked pytest tests/unit/test_config.py`; finish with the applicable checks above. After they pass, repeat only when further changes or unresolved failures justify it.
 
-Add meaningful tests for changed behavior and failure boundaries using small deterministic fixtures. Ruff and pytest already exist; add frontend-native checks with the portal and dbt tests with SQL models. Never add empty test suites or custom lint/format/link validators where maintained tools suffice. Fix failing hooks; do not bypass them. Static HTML checks do not establish browser layout or link validity; verify those separately when relevant.
+### Test scope
+
+Before adding a test, name the behavior that changed, a plausible failure it could catch, and the lowest-cost layer that can observe it. Check existing coverage first. Add the fewest cases needed to distinguish correct behavior from that failure; there is no test-count target. A small change may need no new test when it only changes prose, formatting, comments, or wiring already checked by a maintained tool. Do not generate a test matrix for every parameter or add tests solely to mirror implementation details. Unit, integration, and end-to-end describe the execution layer; contract and regression describe what the test protects and can use any suitable layer.
+
+| Kind        | Use when                                                                                         |
+| ----------- | ------------------------------------------------------------------------------------------------ |
+| Unit        | Pure logic, validation, or a failure boundary can be checked with a small deterministic fixture. |
+| Integration | Correctness depends on a real database, filesystem, service, or module boundary.                 |
+| Contract    | A source/schema/API shape, identity rule, or compatibility promise changes.                      |
+| End-to-end  | A critical user workflow spans implemented components and lower layers cannot establish it.      |
+| Regression  | A specific bug needs a reproducing case at the cheapest layer that proves the fix.               |
+
+Prefer observable results and state over private methods or mock call counts. Combine related inputs with parameterization when each case protects a distinct rule. Do not duplicate the same assertion across layers; a mocked SQL call does not prove database behavior. Run costly integration or end-to-end checks only for a relevant boundary or risk, outside the default quick suite when they require services or large data. Document what was actually exercised and what remains unverified.
+
+Ruff and pytest already exist; add frontend-native checks with the portal and dbt tests with SQL models. Never add empty test suites or custom lint/format/link validators where maintained tools suffice. Fix failing hooks; do not bypass them. Static HTML checks do not establish browser layout or link validity; verify those separately when relevant.
 
 ## Finish the task
 

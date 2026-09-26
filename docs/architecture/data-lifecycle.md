@@ -4,6 +4,12 @@
 
 **Status:** required design behavior; discovery, scheduling, manifests and publication jobs remain to be implemented.
 
+## Implemented source-acquisition slice
+
+The CLI fetches an explicitly requested monthly TLC Yellow Taxi object using the period-derived CloudFront URL. Python's standard library handles HTTP and streaming. Files are written to a temporary path, checked against `Content-Length` and Parquet magic bytes, hashed with SHA-256, then placed under a source/period/checksum path without replacing an existing release. Repeating a request reuses a verified local release; `--refresh` fetches the source again so changed content is retained separately. Failed attempts are recorded and partial files are removed. This does not discover the latest period or publish a table.
+
+Each attempt and immutable release is recorded in the configured PostgreSQL metadata database. Run metadata includes source ID, period, URL, status, timezone-aware UTC start/completion, attempts, output path, byte count, SHA-256, ETag, source Last-Modified header and failure detail. Release records reserve nullable row count and JSON schema metadata for later validation. HTTP Last-Modified is distinct from source publication time; it is not treated as a verified publication timestamp. See the [source contract](../data-model/contracts.md) for the CLI and path layout.
+
 ## Two workloads, shared semantics
 
 Historical backfills select fixed source periods/releases for reproducible analysis and ML. Latest refresh discovers newly available releases and corrections on a source-specific cadence. Both use the same adapter, manifest, validation, identity and publication code, with explicit run parameters. “Latest” is the newest validated source release, which may describe events from weeks or months earlier. Historical replay is a third workload, using frozen inputs and its own run identity; it is not a substitute for refreshing published data.

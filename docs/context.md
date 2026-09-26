@@ -2,7 +2,7 @@
 
 [Documentation index](README.md)
 
-**Baseline updated: 2026-09-26. Python boilerplate exists; application services and data pipelines remain planned.** The shared package validates local TOML configuration through a CLI, with locked development dependencies, Ruff, pytest and CI checks. Repository quality tooling, pre-commit hooks and project skills also exist; see [contributor setup](../CONTRIBUTING.md) and [agent instructions](../AGENTS.md). Resource settings are planning budgets, not implemented admission controls. Read this page before proposing work; then read the relevant contract, architecture page, and roadmap milestone. Documentation describes intended behavior until code and recorded runs demonstrate it.
+**Baseline updated: 2026-09-26.** The Python package validates local TOML configuration and downloads a requested monthly NYC Yellow Taxi Parquet object into checksum-addressed local storage. A PostgreSQL metadata adapter records ingestion attempts and source releases. Lakehouse table publication, shared-catalog integration, streaming, ML and the portal remain planned. The repository also has locked development dependencies, Ruff, local pytest, documentation checks, pre-commit hooks and CI; see [contributor setup](../CONTRIBUTING.md) and [agent instructions](../AGENTS.md). Resource settings remain planning budgets, not general admission controls. Read this page before proposing work; then read the relevant contract, architecture page, and roadmap milestone. Documentation describes intended behavior until code and recorded runs demonstrate it.
 
 ## What we are building
 
@@ -33,6 +33,6 @@ Use the task routing in [AGENTS.md](../AGENTS.md) to select relevant pages. This
 
 ## What comes next
 
-The next deliverable is the Stage 1 compatibility spike and source contract, not the full technology inventory. Its output must name exact versions, catalog/writer choices, a small fixture, and a passing write/read result. See the [commit sequence](roadmap.md#first-implementation-commits).
+The next deliverable is the shared Stage 1 catalog/writer/Trino compatibility spike and first published table, not the full technology inventory. The period-based source downloader and PostgreSQL provenance adapter are implemented; see the [source contract](data-model/contracts.md). See the [commit sequence](roadmap.md#first-implementation-commits).
 
 Internal files are optional background and remain ignored. Future work must be possible using only this public documentation. For an unresolved conflict, record the rationale and affected contracts rather than relying on whichever source was read last.
