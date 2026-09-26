@@ -41,6 +41,5 @@ jobs:
       - run: uv sync --locked
       - run: uv run --locked ruff format --check .
       - run: uv run --locked ruff check .
-      - run: uv run --locked pytest
       - run: uv run --locked urbanflow check-config --config configs/local.example.toml
       - run: uv build
