@@ -454,7 +454,7 @@
         <div class="top">
           <span class="brand">URBANFLOW / PROJECT GUIDE</span
           ><span class="status"
-            >Design proposal · 25 September 2026 · Application not implemented</span
+            >Design proposal · 26 September 2026 · Pipelines and application not implemented</span
           >
         </div>
         <p class="eyebrow">The plan in plain technical language</p>
@@ -466,23 +466,84 @@
         </p>
         <div class="note">
           <p>
-            <strong>This guide is for discussion.</strong> The architecture describes our current
-            direction. The folder structure below is a proposal, not a scaffold we have already
-            created. You can suggest changes by section number, folder path or question number.
+            <strong>Current state:</strong> this repository has design documentation and a small
+            Python package for validating local configuration. The data pipelines and application
+            are still planned. Follow the reading path below to understand the goal, the design, and
+            what implementation must prove.
           </p>
         </div>
       </div>
     </header>
     <div class="shell layout">
       <nav aria-label="Guide sections">
-        <strong>Read the plan</strong><a href="#outcome">01 · The result</a
-        ><a href="#journey">02 · How data moves</a><a href="#freshness">03 · History and latest</a
-        ><a href="#tools">04 · Why these tools</a><a href="#build">05 · Build order</a
-        ><a href="#scale">06 · Local and larger</a><a href="#folders">07 · Proposed folders</a
-        ><a href="#boundaries">08 · Module rules</a><a href="#feedback">09 · Your suggestions</a
+        <strong>Learn the project</strong><a href="#reading-path">Start · Reading path</a
+        ><a href="#outcome">01 · The result</a><a href="#journey">02 · How data moves</a
+        ><a href="#freshness">03 · History and latest</a><a href="#tools">04 · Why these tools</a
+        ><a href="#build">05 · Build order</a><a href="#scale">06 · Local and larger</a
+        ><a href="#folders">07 · Proposed folders</a><a href="#boundaries">08 · Module rules</a
+        ><a href="#feedback">09 · Your suggestions</a
         ><a href="diagrams/architecture.html">Detailed architecture ↗</a>
       </nav>
       <main id="main">
+        <section id="reading-path">
+          <span class="number">START / READ IN THIS ORDER</span>
+          <h2>A step-by-step route through the project</h2>
+          <p>
+            Use this page first for the plain-language picture. Then follow the documents below;
+            each one answers a different question. You can stop after the roadmap for a first
+            understanding, and return to the detailed contracts when you start implementation.
+          </p>
+          <ol class="flow">
+            <li>
+              <strong>Why does UrbanFlow exist?</strong>
+              <p>
+                Read the <a href="overview.md">project overview</a> for its goals, first data
+                sources, intended users, and what is deliberately later scope.
+              </p>
+            </li>
+            <li>
+              <strong>How is the system meant to fit together?</strong>
+              <p>
+                Read the <a href="architecture/platform.md">platform architecture</a>, then open the
+                <a href="diagrams/architecture.html">visual architecture review</a> to see the
+                planned responsibilities and data paths.
+              </p>
+            </li>
+            <li>
+              <strong>What happens to one source record?</strong>
+              <p>
+                Follow the <a href="architecture/one-trip.md">one-trip walkthrough</a>, then skim
+                the <a href="data-model/contracts.md">data contracts</a> for identity, quality,
+                table grains, and publication rules.
+              </p>
+            </li>
+            <li>
+              <strong>Which choices are settled, and which still need proof?</strong>
+              <p>
+                Read <a href="decisions/README.md">architecture decisions</a> and
+                <a href="decisions/source-reconciliation.md">source reconciliation</a>. Proposed
+                choices are design direction; compatibility tests must establish what works.
+              </p>
+            </li>
+            <li>
+              <strong>What should be implemented first?</strong>
+              <p>
+                Read the <a href="roadmap.md">delivery roadmap</a>, then the
+                <a href="architecture/local.md">local setup constraints</a> and
+                <a href="operations/benchmarks.md">benchmark protocol</a> before building or
+                measuring anything.
+              </p>
+            </li>
+          </ol>
+          <div class="note">
+            <p>
+              <strong>Keep this distinction in mind:</strong> the roadmap and diagrams describe
+              intended work. The first implementation step is a small catalog/writer compatibility
+              spike; the full pipeline, streaming services, portal, forecasts, and assistant are not
+              implemented yet.
+            </p>
+          </div>
+        </section>
         <section id="outcome">
           <span class="number">01 / THE RESULT</span>
           <h2>What should this project actually do?</h2>
@@ -843,18 +904,19 @@
           </p>
           <p>
             Today the repository contains documentation, HTML/diagram assets, project-specific agent
-            skills and instructions, plus formatting, linting, pre-commit and CI configuration. See
-            <a href="../CONTRIBUTING.md">contributor setup</a> for those runnable checks.
-            Application packages, data jobs and deployment directories in the tree below remain
-            proposed.
+            skills and instructions, plus a shared Python package with a local configuration CLI,
+            unit tests, formatting, linting, pre-commit and CI configuration. See
+            <a href="../CONTRIBUTING.md">contributor setup</a> for runnable checks. The package,
+            configuration and unit-test foundations exist; data jobs, services and the remaining
+            directories in the tree below are proposed.
           </p>
           <pre aria-label="Proposed repository tree"><code>UrbanFlow/
 ├── README.md
 ├── docs/                       # Existing design docs and HTML guides
 │   └── internal/               # Local raw notes; stays ignored
-├── pyproject.toml              # Shared Python package and tool config
+├── pyproject.toml              # Existing shared Python package and tool config
 ├── src/urbanflow/
-│   ├── config/                 # Load and validate runtime settings
+│   ├── config/                 # Existing local settings loader
 │   ├── contracts/              # Load schemas and validate payloads
 │   ├── sources/                # Discover/download/map each source
 │   │   └── nyc_tlc/            # First adapter; other sources later
@@ -1045,7 +1107,7 @@
           </p>
         </section>
         <footer>
-          UrbanFlow · Project guide and proposed repository layout · 25 September 2026<br />The
+          UrbanFlow · Project guide and proposed repository layout · 26 September 2026<br />The
           current Markdown documents govern architecture decisions. The proposed folder layout has
           not been implemented. This page works offline without external assets or scripts.
         </footer>

@@ -2,7 +2,7 @@
 
 [Documentation index](README.md)
 
-**Baseline updated: 2026-09-25. Application implementation has not started.** Repository quality tooling, pre-commit hooks, CI configuration and project skills now exist; see [contributor setup](../CONTRIBUTING.md) and [agent instructions](../AGENTS.md). Read this page before proposing work; then read the relevant contract, architecture page, and roadmap milestone. Documentation describes intended behavior until code and recorded runs demonstrate it.
+**Baseline updated: 2026-09-26. Python boilerplate exists; application services and data pipelines remain planned.** The shared package validates local TOML configuration through a CLI, with locked development dependencies, Ruff, pytest and CI checks. Repository quality tooling, pre-commit hooks and project skills also exist; see [contributor setup](../CONTRIBUTING.md) and [agent instructions](../AGENTS.md). Resource settings are planning budgets, not implemented admission controls. Read this page before proposing work; then read the relevant contract, architecture page, and roadmap milestone. Documentation describes intended behavior until code and recorded runs demonstrate it.
 
 ## What we are building
 
@@ -10,7 +10,9 @@ UrbanFlow is a local-first mobility lakehouse and streaming engineering project,
 
 The development machine has 16 GB RAM and a 512 GB SSD. Target roughly 10 GB of project data in routine work, with a **20 GB peak working-data ceiling**, including copies, retained snapshots, Kafka logs, checkpoints, scratch, exports, and telemetry. Container images are tracked separately; available disk space still limits all work. The provisional stack RAM budget is 8–10 GB, to be measured. Normal development should require no paid cloud infrastructure. Run services selectively.
 
-## Read in this order
+## Reference map
+
+Use the task routing in [AGENTS.md](../AGENTS.md) to select relevant pages. This is an onboarding order, not a requirement to read every document for each task.
 
 1. [Overview](overview.md) for goals and scope.
 2. [Platform](architecture/platform.md) and the [HTML architecture review](diagrams/architecture.html) for responsibilities and paths.

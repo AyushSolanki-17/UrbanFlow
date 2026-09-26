@@ -13,9 +13,16 @@
     "lint:md": "markdownlint-cli2",
     "lint:html": "htmlhint --config .htmlhintrc \"docs/*.html\" \"docs/diagrams/*.html\"",
     "lint": "npm run lint:md && npm run lint:html",
-    "check": "npm run format:check && npm run lint"
+    "check": "npm run format:check && npm run lint",
+    "format:python": "uv run --locked ruff format .",
+    "check:python": "uv run --locked ruff format --check . && uv run --locked ruff check . && uv run --locked pytest",
+    "check:all": "npm run check && npm run check:python"
   },
   "lint-staged": {
+    "*.py": [
+      "uv run --locked ruff check --fix",
+      "uv run --locked ruff format"
+    ],
     "*.md": [
       "prettier --write",
       "markdownlint-cli2 --no-globs"

@@ -224,3 +224,9 @@ docs/internal
 node_modules/
 coverage/
 .husky/_/
+
+# Local runtime data and private configuration
+.local/
+configs/local.toml
+.env.*
+!.env.example

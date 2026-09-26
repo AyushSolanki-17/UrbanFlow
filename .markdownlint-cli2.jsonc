@@ -1,6 +1,6 @@
 {
   "globs": ["**/*.md", ".agents/skills/**/SKILL.md"],
-  "ignores": ["docs/internal/**", "node_modules/**"],
+  "ignores": ["docs/internal/**", "node_modules/**", ".venv/**", ".local/**"],
   "config": {
     "default": true,
     // Prose is kept on logical lines; tables and URLs may be long.

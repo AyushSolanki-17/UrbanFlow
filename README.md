@@ -2,7 +2,16 @@
 
 A planned open-source mobility lakehouse for historical and latest published data, streaming replay, distributed analytics, forecasting and grounded natural-language tools.
 
-**Status:** architecture documentation and repository quality tooling; application implementation has not started.
+**Status:** architecture documentation, repository quality tooling and a Python foundation package with local configuration validation. Ingestion, lakehouse services and the portal remain planned.
+
+With Node.js 24 and [uv](https://docs.astral.sh/uv/getting-started/installation/) installed:
+
+```sh
+npm ci
+uv sync --locked
+uv run --locked urbanflow check-config --config configs/local.example.toml
+npm run check:all
+```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, formatting, linting, pre-commit hooks and CI. Project-specific agent guidance lives in [AGENTS.md](AGENTS.md).
 

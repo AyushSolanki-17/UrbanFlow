@@ -1,0 +1,8 @@
+# Non-secret planning settings. Copy to local.toml for personal overrides.
+# Paths are relative to this file, not the shell's working directory.
+# Budgets use decimal GB and are not yet enforced by ingestion jobs.
+[local]
+data_dir = "../.local/data"
+working_data_target_gb = 10
+working_data_peak_gb = 20
+stack_memory_budget_gb = 8

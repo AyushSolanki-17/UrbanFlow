@@ -6,3 +6,7 @@ coverage/
 dist/
 # npm maintains its lockfile formatting.
 package-lock.json
+.venv/
+.local/
+configs/local.toml
+uv.lock
