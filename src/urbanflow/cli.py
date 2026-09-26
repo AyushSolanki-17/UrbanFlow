@@ -8,7 +8,7 @@ from pathlib import Path
 import psycopg
 
 from urbanflow.config import load_settings
-from urbanflow.database import PostgresMetadataAdapter
+from urbanflow.database import get_metadata_repository
 from urbanflow.ingestion.sources.nyc_taxi import download_yellow_taxi
 
 
@@ -38,7 +38,7 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(display_settings, default=str, indent=2))
         return 0
     try:
-        metadata = PostgresMetadataAdapter(settings.metadata_database_url)
+        metadata = get_metadata_repository(settings.metadata_database_url)
         result = download_yellow_taxi(
             args.period,
             data_dir=settings.data_dir,

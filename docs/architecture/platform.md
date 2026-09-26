@@ -6,23 +6,23 @@
 
 ## Component responsibilities
 
-| Layer             | Target components                                            | Responsibility                                                                              |
-| ----------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------- |
-| Ingestion         | Python source adapters; NiFi when justified                  | Download, route, normalize source envelopes, retain provenance                              |
-| Event contracts   | Versioned schemas, schema registry                           | Validate producer/consumer contracts and compatibility                                      |
-| Event backbone    | Apache Kafka                                                 | Retained, partitioned events and independent consumer groups                                |
-| Streaming         | Apache Flink                                                 | Event-time aggregation, late events, state, checkpoints, anomaly candidates                 |
-| Batch             | Apache Spark / Spark SQL                                     | Bronze-to-Silver cleaning, joins, feature groundwork, backfills, and distributed benchmarks |
-| Lakehouse         | Apache Iceberg, Parquet, shared catalog                      | Bronze/Silver/Gold tables, table metadata, snapshots, evolution                             |
-| Object storage    | MinIO locally; cloud object storage later                    | Raw landing files, warehouse data, and durable artifacts                                    |
-| Interactive query | Trino; DuckDB for local inspection/comparison                | Bounded analytical queries; controlled single-node baseline                                 |
-| SQL modelling     | Proposed dbt-trino from Stage 2                              | Silver-to-Gold models, tests and generated SQL lineage; adapter validation required         |
-| Orchestration     | Apache Airflow                                               | Scheduled ingestion, validation, batch jobs, training, evaluation                           |
-| Quality           | Code/business rules; dbt tests; Great Expectations if needed | Validation gates and quarantine decisions                                                   |
-| Serving           | Redis, FastAPI, Next.js/TypeScript                           | Current state, APIs, and user interface                                                     |
-| ML                | Baselines, XGBoost/LightGBM, optional PyTorch model, MLflow  | Forecasts, anomalies, experiment and model traceability                                     |
-| Metadata          | PostgreSQL                                                   | Airflow and application metadata; other service metadata if selected                        |
-| Operations        | Prometheus, Grafana, OpenTelemetry, proposed Loki            | Metrics, dashboards, instrumentation, and centralized logs                                  |
+| Layer             | Target components                                            | Responsibility                                                                                  |
+| ----------------- | ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
+| Ingestion         | Python source adapters; NiFi when justified                  | Download, route, normalize source envelopes, retain provenance                                  |
+| Event contracts   | Versioned schemas, schema registry                           | Validate producer/consumer contracts and compatibility                                          |
+| Event backbone    | Apache Kafka                                                 | Retained, partitioned events and independent consumer groups                                    |
+| Streaming         | Apache Flink                                                 | Event-time aggregation, late events, state, checkpoints, anomaly candidates                     |
+| Batch             | Apache Spark / Spark SQL                                     | Bronze-to-Silver cleaning, joins, feature groundwork, backfills, and distributed benchmarks     |
+| Lakehouse         | Apache Iceberg, Parquet, shared catalog                      | Bronze/Silver/Gold tables, table metadata, snapshots, evolution                                 |
+| Object storage    | MinIO locally; cloud object storage later                    | Raw landing files, warehouse data, and durable artifacts                                        |
+| Interactive query | Trino; DuckDB for local inspection/comparison                | Bounded analytical queries; controlled single-node baseline                                     |
+| SQL modelling     | Proposed dbt-trino from Stage 2                              | Silver-to-Gold models, tests and generated SQL lineage; adapter validation required             |
+| Orchestration     | Apache Airflow                                               | Scheduled ingestion, validation, batch jobs, training, evaluation                               |
+| Quality           | Code/business rules; dbt tests; Great Expectations if needed | Validation gates and quarantine decisions                                                       |
+| Serving           | Redis, FastAPI, Next.js/TypeScript                           | Current state, APIs, and user interface                                                         |
+| ML                | Baselines, XGBoost/LightGBM, optional PyTorch model, MLflow  | Forecasts, anomalies, experiment and model traceability                                         |
+| Metadata          | PostgreSQL through the `MetadataRepository` interface        | Airflow and application metadata; backend construction is centralized in the repository factory |
+| Operations        | Prometheus, Grafana, OpenTelemetry, proposed Loki            | Metrics, dashboards, instrumentation, and centralized logs                                      |
 
 Iceberg is a table format, MinIO stores objects, and the catalog coordinates table metadata. These are separate responsibilities. Engines access both the catalog and object storage; a catalog is not a proxy through which all data bytes flow. The catalog implementation and shared-engine compatibility must be settled for the foundation milestone.
 
@@ -69,6 +69,8 @@ Contracts, a schema registry, Redis, and Loki are proposed target additions from
 ## Modularity and expansion
 
 The logical architecture must support a larger deployment independently of the local profile. Local byte/RAM budgets constrain experiments and retention on this host; they do not become hard-coded API, table, city or topology limits.
+
+Application workflows depend on the `MetadataRepository` interface. A factory returns a cached adapter instance per connection configuration; the adapter opens short-lived database connections for operations. Backend selection stays centralized so a future metadata store can be introduced without moving database construction into ingestion workflows.
 
 | Boundary            | Stable interface                                                            | Expansion mechanism                                                                          |
 | ------------------- | --------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |

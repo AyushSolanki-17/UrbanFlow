@@ -10,6 +10,7 @@ Read `docs/data-model/contracts.md` and `docs/architecture/data-lifecycle.md`, p
 ## Data invariants
 
 - Write Python docstrings in Google style. Use comments sparingly to explain intent, constraints, or non-obvious decisions; write them as complete sentences and do not restate the code.
+- Place each data model in its own snake_case module named for its class. Keep ingestion and publication code dependent on repository interfaces; construct and reuse adapters through the database factory rather than instantiating backend adapters in workflows.
 
 - Parameterize source/city, period, release and run identity. Separate source-specific discovery/mapping from reusable ingestion and publication logic.
 - Distinguish event time, source publication time, ingestion time and curated publication time. Record coverage gaps; absent data is not zero demand.
