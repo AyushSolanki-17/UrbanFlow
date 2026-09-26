@@ -15,3 +15,37 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  s3mock:
+    image: adobe/s3mock:latest
+    ports:
+      - "9090:9090"
+      - "9191:9191"
+    environment:
+      initialBuckets: warehouse,lakehouse
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9090/ > /dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  trino:
+    image: trinodb/trino:476
+    ports:
+      - "8080:8080"
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the environment}
+    volumes:
+      - ./docker/trino/catalog:/etc/trino/catalog:ro
+      - ./.local/spike-iceberg/warehouse:/Users/ayushsolanki/Desktop/Projects/UrbanFlow/.local/spike-iceberg/warehouse:ro
+      - ./.local/spike-iceberg/warehouse:/tmp/Users/ayushsolanki/Desktop/Projects/UrbanFlow/.local/spike-iceberg/warehouse:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      s3mock:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/v1/info || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30

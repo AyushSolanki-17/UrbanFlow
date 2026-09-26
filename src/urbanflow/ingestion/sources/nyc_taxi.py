@@ -1,6 +1,7 @@
 """Download monthly NYC TLC Yellow Taxi trip files."""
 
 import hashlib
+import json
 import math
 import os
 import shutil
@@ -78,6 +79,25 @@ def validate_period(period: str) -> str:
     return period
 
 
+def _working_data_size_bytes(root: Path) -> int:
+    """Return the total bytes under ``root`` for admission checks.
+
+    Only files under the configured ``data_dir`` are counted. Container
+    images and external volumes are not included. Missing directories
+    count as zero.
+    """
+    if not root.exists():
+        return 0
+    total = 0
+    for path in root.rglob("*"):
+        try:
+            if path.is_file():
+                total += path.stat().st_size
+        except OSError:
+            continue
+    return total
+
+
 def download_yellow_taxi(
     period: str,
     *,
@@ -86,6 +106,7 @@ def download_yellow_taxi(
     refresh: bool = False,
     timeout_seconds: float = 60,
     max_retries: int = 3,
+    working_data_peak_gb: float | None = None,
     urlopen: Callable[[urllib.request.Request, float], DownloadResponse] = urllib.request.urlopen,
     sleep: Callable[[float], None] = time.sleep,
 ) -> DownloadResult:
@@ -117,6 +138,9 @@ def download_yellow_taxi(
         raise ValueError("timeout_seconds must be a finite positive number")
     if max_retries < 0:
         raise ValueError("max_retries must be zero or greater")
+    if working_data_peak_gb is not None:
+        if not math.isfinite(working_data_peak_gb) or working_data_peak_gb <= 0:
+            raise ValueError("working_data_peak_gb must be a finite positive number")
 
     source_url = SOURCE_URL_TEMPLATE.format(period=period)
     run_id = uuid.uuid4()
@@ -179,6 +203,7 @@ def download_yellow_taxi(
                     timeout_seconds=timeout_seconds,
                     urlopen=urlopen,
                     data_dir=data_dir,
+                    working_data_peak_gb=working_data_peak_gb,
                 )
                 break
             except urllib.error.HTTPError as error:
@@ -213,6 +238,21 @@ def download_yellow_taxi(
                 ) from error
         temp_path.unlink(missing_ok=True)
 
+        # Write a small manifest alongside the immutable release for
+        # reproducible ingestion and later lakehouse publication.
+        _write_release_manifest(
+            release_dir=release_dir,
+            release_path=release_path,
+            source_id=SOURCE_ID,
+            source_period=period,
+            source_url=source_url,
+            sha256=digest,
+            byte_count=byte_count,
+            etag=headers.get("ETag"),
+            source_last_modified=headers.get("Last-Modified"),
+            completed_at_utc=_utc_now(),
+        )
+
         completed = _utc_now()
         run = IngestionRun(
             run_id=run_id,
@@ -242,6 +282,56 @@ def download_yellow_taxi(
         raise
 
 
+def _write_release_manifest(
+    *,
+    release_dir: Path,
+    release_path: Path,
+    source_id: str,
+    source_period: str,
+    source_url: str,
+    sha256: str,
+    byte_count: int,
+    etag: str | None,
+    source_last_modified: str | None,
+    completed_at_utc: datetime,
+) -> None:
+    """Write a JSON manifest for the immutable release.
+
+    The manifest is small and records the same provenance the database
+    stores, plus a best-effort Parquet row count and schema for later
+    lakehouse validation. Missing PyArrow is not fatal.
+    """
+    manifest: dict[str, object] = {
+        "source_id": source_id,
+        "source_period": source_period,
+        "source_url": source_url,
+        "sha256": sha256,
+        "byte_count": byte_count,
+        "etag": etag,
+        "source_last_modified": source_last_modified,
+        "completed_at_utc": completed_at_utc.isoformat().replace("+00:00", "Z"),
+        "file_name": release_path.name,
+        "row_count": None,
+        "schema": None,
+    }
+    try:
+        import pyarrow.parquet as pq
+
+        parquet = pq.ParquetFile(release_path)
+        manifest["row_count"] = parquet.metadata.num_rows
+        manifest["schema"] = [field.name for field in parquet.schema_arrow]
+        # Also store a JSON-serializable schema with types.
+        manifest["schema_detail"] = str(parquet.schema_arrow)
+    except Exception:
+        # Manifest remains useful without row counts.
+        pass
+    manifest_path = release_dir / "manifest.json"
+    # Atomic write via temp file.
+    tmp = release_dir / ".manifest.json.tmp"
+    tmp.write_text(json.dumps(manifest, indent=2))
+    tmp.replace(manifest_path)
+
+
 def _fetch(
     url: str,
     destination: Path,
@@ -249,6 +339,7 @@ def _fetch(
     timeout_seconds: float,
     urlopen: Callable[[urllib.request.Request, float], DownloadResponse],
     data_dir: Path,
+    working_data_peak_gb: float | None = None,
 ) -> tuple[dict[str, str], int, str]:
     """Stream one HTTP response to disk while verifying length and Parquet framing."""
     request = urllib.request.Request(
@@ -269,6 +360,16 @@ def _fetch(
                 raise RuntimeError(
                     f"insufficient free space for source object: {expected_bytes} bytes required"
                 )
+            if working_data_peak_gb is not None:
+                current = _working_data_size_bytes(data_dir)
+                peak_bytes = int(working_data_peak_gb * 1_000_000_000)
+                # Count peak as current usage plus the new object plus a small headroom
+                # for the temp file and later manifest.
+                if current + expected_bytes > peak_bytes:
+                    raise RuntimeError(
+                        f"working data peak {working_data_peak_gb} GB would be exceeded: "
+                        f"current {current} bytes + {expected_bytes} bytes > {peak_bytes} bytes"
+                    )
         while chunk := response.read(_CHUNK_SIZE):
             output.write(chunk)
             digest.update(chunk)

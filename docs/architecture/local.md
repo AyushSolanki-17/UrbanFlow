@@ -2,7 +2,7 @@
 
 [Documentation index](../README.md) · [Deployment diagram](../diagrams/deployment.drawio)
 
-**Status:** proposed Docker Compose organization. Compose files, images, resource limits, bootstrap scripts, and quick-start commands do not yet exist.
+**Status:** minimal Docker Compose exists for the foundation spike; broader profiles remain proposed. `compose.yaml` provides `postgres`, `s3mock` (`adobe/s3mock:latest` at 9090/9191), and `trino:476` with a shared PostgreSQL JDBC Iceberg catalog (`spike_pg`) supporting both file (`file://…/.local/spike-iceberg/warehouse`) and S3 (`s3://warehouse`) warehouses; see `docs/spikes/2026-09-26-foundation-compatibility.md`. Full MinIO (persistent S3) and additional profiles are next.
 
 The local machine is the development and failure-testing laboratory. Do not assume it can run every target service at once or represent a highly available cluster. Validate container architecture compatibility and measure CPU, memory, disk, and thermal limits on the actual host.
 

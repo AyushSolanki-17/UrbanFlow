@@ -263,3 +263,53 @@ def test_rejects_invalid_timeout_before_creating_a_run(tmp_path, timeout):
             timeout_seconds=timeout,
         )
     assert store.runs == {}
+
+
+def test_resource_admission_rejects_when_peak_would_be_exceeded(tmp_path):
+    body = b"PAR1" + b"x" * 100 + b"PAR1"
+    calls: list[tuple[str, float]] = []
+    store = FakeMetadataRepository()
+    # Create a pre-existing file to inflate current working data size.
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    (data_dir / "existing.dat").write_bytes(b"x" * 500)
+    # Peak is tiny (0.0000005 GB = 500 bytes) so current 500 + 108 bytes > peak.
+    with pytest.raises(RuntimeError, match="working data peak"):
+        download_yellow_taxi(
+            "2024-01",
+            data_dir=data_dir,
+            metadata=store,
+            working_data_peak_gb=0.0000005,
+            urlopen=fake_urlopen_for(body, calls),
+            sleep=lambda _: None,
+        )
+    # Failed run should be recorded.
+    assert next(iter(store.runs.values())).status == "failed"
+
+
+def test_manifest_is_written_with_row_count_and_schema(tmp_path):
+    body = b"PAR1fixture-dataPAR1"
+    # Create a valid parquet file instead of raw bytes to get real row counts
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+
+    tbl = pa.table({"VendorID": [1, 2], "tpep_pickup_datetime": [None, None]})
+    # Use a real parquet body via pq
+    tmp_parquet = tmp_path / "src.parquet"
+    pq.write_table(tbl, tmp_parquet)
+    body = tmp_parquet.read_bytes()
+    store = FakeMetadataRepository()
+    result = download_yellow_taxi(
+        "2024-01",
+        data_dir=tmp_path / "data",
+        metadata=store,
+        urlopen=fake_urlopen_for(body, []),
+        sleep=lambda _: None,
+    )
+    assert result["status"] == "succeeded"
+    release_dir = Path(result["file_path"]).parent
+    manifest = json.loads((release_dir / "manifest.json").read_text())
+    assert manifest["source_period"] == "2024-01"
+    assert manifest["sha256"] == result["sha256"]
+    assert "row_count" in manifest
+    assert "schema" in manifest
