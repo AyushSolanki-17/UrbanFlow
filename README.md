@@ -1,8 +1,8 @@
 # UrbanFlow
 
-A planned open-source mobility lakehouse for historical and latest published data, streaming replay, distributed analytics, forecasting and grounded natural-language tools.
+An open-source mobility lakehouse for historical and latest published data, with streaming replay, distributed analytics, forecasting and grounded natural-language tools planned for later stages.
 
-**Status:** architecture documentation, repository quality tooling and a Python foundation package with local configuration validation. Ingestion, lakehouse services and the portal remain planned.
+**Status:** Stage 1 is complete: the Python CLI discovers or downloads NYC Yellow Taxi months, publishes period-scoped Iceberg Bronze/Silver/Gold tables, and queries hourly demand through Trino. Distributed processing, scheduled refresh, streaming, ML, agents and the portal remain planned. See the [roadmap](docs/roadmap.md) for evidence and remaining stages.
 
 With Node.js 24 and [uv](https://docs.astral.sh/uv/getting-started/installation/) installed:
 

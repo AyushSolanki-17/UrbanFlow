@@ -17,3 +17,5 @@ class RejectionReason(StrEnum):
     NEGATIVE_DISTANCE = "negative_distance"
     NEGATIVE_FARE = "negative_fare"
     INVALID_PASSENGER_COUNT = "invalid_passenger_count"
+    AMBIGUOUS_LOCAL_TIMESTAMP = "ambiguous_local_timestamp"
+    NONEXISTENT_LOCAL_TIMESTAMP = "nonexistent_local_timestamp"

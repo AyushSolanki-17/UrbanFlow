@@ -2,9 +2,9 @@
 
 ## Current state
 
-Implemented: Python configuration/CLI foundation, a period-based NYC Yellow Taxi downloader, a PostgreSQL metadata adapter, local unit tests, locked dependencies, documentation checks, pre-commit hooks and CI configuration. Lakehouse table publication, shared catalog integration, streaming, ML and the portal remain planned. Resource settings are validated planning budgets, not general admission controls.
+Implemented: Python configuration/CLI foundation; latest-period NYC Yellow Taxi discovery and checksum-addressed download; a PostgreSQL metadata adapter; period-scoped Bronze/Silver/Gold publication; shared-catalog Iceberg/Trino integration; a bounded read-only query demo; local tests, locked dependencies, documentation checks, pre-commit hooks and CI configuration. Spark/dbt processing, scheduled jobs, streaming, ML and the portal remain planned. Resource settings are validated budgets, and ingestion applies its configured download admission checks.
 
-The next planned milestone is the Stage 1 catalog/writer compatibility spike and source contract. Follow the user's requested scope; do not implement the entire roadmap by default.
+Stage 1 is complete. The next planned milestone is Stage 2 compatibility and measurement, beginning with dbt-trino Gold ownership transfer. Follow the user's requested scope; do not implement the entire roadmap by default.
 
 ## Start with the smallest useful context
 

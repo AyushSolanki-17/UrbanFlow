@@ -41,7 +41,7 @@ Existing `download_yellow_taxi` tests cover new period, corrected period, resour
 
 ### Gold
 
-`_gold_aggregate` groups clean trips by `city="NYC"`, `zone=PULocationID`, `hour=floor(pickup hour, UTC)`, and source-period provenance via `pyarrow.compute.floor_temporal` and `group_by(...).aggregate`.
+`_gold_aggregate` groups validated trips by `city="NYC"`, `zone=PULocationID`, `hour=floor(pickup_at_utc, UTC)`, and source-period provenance via `pyarrow.compute.floor_temporal` and `group_by(...).aggregate`. Naive source timestamps are explicitly interpreted as `America/New_York`; ambiguous/nonexistent DST wall times are rejected.
 
 ### Writer
 
@@ -99,8 +99,8 @@ The publisher now tags all four tables with `source_period`. A targeted Iceberg 
 
 Slices are limited via `--limit-rows` to stay within the 20 GB peak (file warehouse <1 MB for 2000 rows; full 2.9 M rows would be ~50 MB Parquet + Iceberg snapshots, still within budget but not required for the proof). Full January 2024 file remains at `.local/source-samples/nyc-tlc/yellow_tripdata_2024-01.parquet` (2,964,624 rows, 49,961,641 bytes, SHA-256 `c4d59…`).
 
-## What remains
+## Follow-on status
 
-- Latest-month discovery, explicit duplicate disposition, and a minimal query/demo surface (Stage 1).
+- Stage 1 follow-on work (latest-month discovery, duplicate preservation policy, and bounded query demo) was completed on 2026-09-28; see the [roadmap evidence](../roadmap.md).
 - dbt-trino Gold ownership transfer and Airflow scheduling with idempotency (Stage 2).
 - Measured comparison report under `docs/operations/benchmarks.md` and portal export.

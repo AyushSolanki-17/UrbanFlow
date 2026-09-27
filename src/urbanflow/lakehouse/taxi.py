@@ -24,7 +24,7 @@ import pyarrow.compute as pc
 import pyarrow.parquet as pq
 from pyiceberg.exceptions import NoSuchTableError
 from pyiceberg.expressions import AlwaysTrue, EqualTo
-from pyiceberg.types import StringType
+from pyiceberg.types import StringType, TimestamptzType
 
 from urbanflow.lakehouse.catalog import load_catalog, load_s3_catalog
 from urbanflow.lakehouse.rejection_reason import RejectionReason
@@ -41,6 +41,42 @@ _NYC_ZONE_MIN, _NYC_ZONE_MAX = 1, 265
 
 # Reasonable passenger counts for Yellow Taxi (driver-reported).
 _PASSENGER_MIN, _PASSENGER_MAX = 1, 6
+_SOURCE_TIMEZONE = "America/New_York"
+
+
+def _normalize_source_timestamps(
+    values: pa.ChunkedArray | pa.Array,
+) -> tuple[pa.Array | pa.ChunkedArray, list[RejectionReason | None]]:
+    """Interpret naive TLC wall times in New York and flag DST ambiguity.
+
+    Ambiguous or nonexistent wall times cannot be mapped to one real instant
+    from the source value alone, so the caller quarantines those rows.
+    """
+    if values.type.tz is not None:
+        normalized = values.cast(pa.timestamp("us", tz="UTC"))
+        return normalized, [None] * len(values)
+
+    earliest = pc.assume_timezone(
+        values, _SOURCE_TIMEZONE, ambiguous="earliest", nonexistent="earliest"
+    )
+    latest = pc.assume_timezone(values, _SOURCE_TIMEZONE, ambiguous="latest", nonexistent="latest")
+    earliest_local = pc.local_timestamp(earliest).to_pylist()
+    latest_local = pc.local_timestamp(latest).to_pylist()
+    distinct_instants = pc.not_equal(earliest, latest).to_pylist()
+    source_values = values.to_pylist()
+    reasons: list[RejectionReason | None] = []
+    for source, local_early, local_late, distinct in zip(
+        source_values, earliest_local, latest_local, distinct_instants, strict=True
+    ):
+        if source is None:
+            reasons.append(None)
+        elif local_early != source or local_late != source:
+            reasons.append(RejectionReason.NONEXISTENT_LOCAL_TIMESTAMP)
+        elif distinct:
+            reasons.append(RejectionReason.AMBIGUOUS_LOCAL_TIMESTAMP)
+        else:
+            reasons.append(None)
+    return earliest.cast(pa.timestamp("us", tz="UTC")), reasons
 
 
 def split_validated_and_rejected(
@@ -71,6 +107,8 @@ def split_validated_and_rejected(
     distance = table["trip_distance"]
     fare = table["fare_amount"]
     passenger = table["passenger_count"] if "passenger_count" in table.column_names else None
+    pickup_utc, pickup_time_issues = _normalize_source_timestamps(pickup)
+    dropoff_utc, dropoff_time_issues = _normalize_source_timestamps(dropoff)
 
     reasons: list[RejectionReason | None] = [None] * n
 
@@ -78,8 +116,14 @@ def split_validated_and_rejected(
         if pickup[i].as_py() is None or dropoff[i].as_py() is None:
             reasons[i] = RejectionReason.MISSING_TIMESTAMPS
             continue
-        pu_pick = pickup[i].as_py()
-        pu_drop = dropoff[i].as_py()
+        if pickup_time_issues[i] is not None:
+            reasons[i] = pickup_time_issues[i]
+            continue
+        if dropoff_time_issues[i] is not None:
+            reasons[i] = dropoff_time_issues[i]
+            continue
+        pu_pick = pickup_utc[i].as_py()
+        pu_drop = dropoff_utc[i].as_py()
         if pu_drop < pu_pick:
             reasons[i] = RejectionReason.DROPOFF_BEFORE_PICKUP
             continue
@@ -123,14 +167,28 @@ def split_validated_and_rejected(
         )
 
     if all(mask_validated):
+        validated_indices = list(range(n))
         validated = table
     elif any(mask_validated):
         validated_indices = [i for i, m in enumerate(mask_validated) if m]
         validated = table.take(validated_indices)
     else:
+        validated_indices = []
         validated = table.slice(0, 0)
 
+    index_array = pa.array(validated_indices, type=pa.int64())
+    validated = _append_or_replace(validated, "pickup_at_utc", pickup_utc.take(index_array))
+    validated = _append_or_replace(validated, "dropoff_at_utc", dropoff_utc.take(index_array))
+
     return validated, rejected_table
+
+
+def _append_or_replace(table: pa.Table, name: str, values: pa.Array | pa.ChunkedArray) -> pa.Table:
+    """Add a derived field or replace an existing field with the same name."""
+    index = table.schema.get_field_index(name)
+    if index < 0:
+        return table.append_column(name, values)
+    return table.set_column(index, name, values)
 
 
 def _quarantine_table(table: pa.Table) -> tuple[pa.Table, pa.Table]:
@@ -184,11 +242,11 @@ def build_hourly_zone_demand(validated: pa.Table) -> pa.Table:
 
     city = pa.array(["NYC"] * validated.num_rows, type=pa.string())
     zone = validated["PULocationID"].cast(pa.int32())
-    pickup = validated["tpep_pickup_datetime"]
-    if pickup.type.tz is None:
-        pickup_utc = pickup.cast(pa.timestamp("us", tz="UTC"))
-    else:
-        pickup_utc = pickup
+    pickup_utc = (
+        validated["pickup_at_utc"]
+        if "pickup_at_utc" in validated.column_names
+        else _normalize_source_timestamps(validated["tpep_pickup_datetime"])[0]
+    )
     try:
         hour = pc.floor_temporal(pickup_utc, 60 * 60, "s")
     except Exception:
@@ -285,27 +343,48 @@ def _write_iceberg_table(
 def _add_legacy_period_column(
     catalog: Any, table: Any, identifier: str, legacy_periods: set[str]
 ) -> Any:
-    """Backfill period labels once for tables made before scoped publication."""
-    if "source_period" in table.schema().column_names:
+    """Evolve old publication schemas and backfill their period labels."""
+    field_names = table.schema().column_names
+    needs_period_backfill = "source_period" not in field_names
+    needs_normalized_times = identifier == str(CURATED_VALIDATED_YELLOW_TRIPS) and any(
+        name not in field_names for name in ("pickup_at_utc", "dropoff_at_utc")
+    )
+    if not needs_period_backfill and not needs_normalized_times:
         return table
     existing = table.scan().to_arrow()
-    time_column = "hour" if "hour" in existing.column_names else "tpep_pickup_datetime"
-    if time_column not in existing.column_names:
-        raise ValueError(f"cannot infer source_period for legacy table {identifier}")
-    fallback = next(iter(legacy_periods)) if len(legacy_periods) == 1 else None
-    values = []
-    for value in existing[time_column].to_pylist():
-        if value is None:
-            if fallback is None:
-                raise ValueError(
-                    f"cannot safely backfill null timestamps in {identifier}; "
-                    "legacy source periods are ambiguous"
+    backfilled = existing
+    update = table.update_schema()
+    if needs_period_backfill:
+        time_column = "hour" if "hour" in existing.column_names else "tpep_pickup_datetime"
+        if time_column not in existing.column_names:
+            raise ValueError(f"cannot infer source_period for legacy table {identifier}")
+        fallback = next(iter(legacy_periods)) if len(legacy_periods) == 1 else None
+        values = []
+        for value in existing[time_column].to_pylist():
+            if value is None:
+                if fallback is None:
+                    raise ValueError(
+                        f"cannot safely backfill null timestamps in {identifier}; "
+                        "legacy source periods are ambiguous"
+                    )
+                values.append(fallback)
+            elif time_column == "hour" and fallback is not None:
+                # The original publisher held one complete source period per table.
+                values.append(fallback)
+            else:
+                values.append(f"{value.year:04d}-{value.month:02d}")
+        backfilled = backfilled.append_column("source_period", pa.array(values, type=pa.string()))
+        update.add_column("source_period", StringType())
+    if needs_normalized_times:
+        for name in ("pickup_at_utc", "dropoff_at_utc"):
+            if name not in field_names:
+                update.add_column(name, TimestamptzType())
+                backfilled = backfilled.append_column(
+                    name, pa.array([None] * backfilled.num_rows, type=pa.timestamp("us", tz="UTC"))
                 )
-            values.append(fallback)
-        else:
-            values.append(f"{value.year:04d}-{value.month:02d}")
-    backfilled = existing.append_column("source_period", pa.array(values, type=pa.string()))
-    table.update_schema().add_column("source_period", StringType()).commit()
+    update.commit()
+    if not needs_period_backfill:
+        return catalog.load_table(identifier)
     table = catalog.load_table(identifier)
     table.overwrite(
         backfilled,
@@ -316,13 +395,22 @@ def _add_legacy_period_column(
 
 
 def _existing_source_periods(catalog: Any, identifier: str) -> set[str]:
-    """Read period labels for safe one-time schema backfill."""
+    """Read or infer period labels for safe one-time schema backfill."""
     try:
         table = catalog.load_table(identifier)
     except NoSuchTableError:
         return set()
     if "source_period" not in table.schema().column_names:
-        return set()
+        if "tpep_pickup_datetime" not in table.schema().column_names:
+            return set()
+        timestamps = table.scan(selected_fields=["tpep_pickup_datetime"]).to_arrow()[
+            "tpep_pickup_datetime"
+        ]
+        return {
+            f"{value.year:04d}-{value.month:02d}"
+            for value in timestamps.to_pylist()
+            if value is not None
+        }
     return {
         value
         for value in table.scan(selected_fields=["source_period"])
@@ -406,10 +494,15 @@ def publish_yellow_slice(
     )
 
     # Validated / rejected split.
-    validated, rejected = split_validated_and_rejected(source_table)
+    # Publish the established quarantine_reason field while exposing the new
+    # validated/rejected API to other callers.
+    validated, rejected = _quarantine_table(source_table)
     validated_rows: int = validated.num_rows
     rejected_rows: int = rejected.num_rows
-    assert validated_rows + rejected_rows == input_rows
+    # No stable TLC trip identifier exists; equal-valued rows can be distinct trips.
+    # Preserve every source row and count no row-level duplicates as discarded.
+    duplicate_rows = 0
+    assert validated_rows + rejected_rows + duplicate_rows == input_rows
     rejected = rejected.append_column(
         "source_period", pa.array([period] * rejected_rows, type=pa.string())
     )
@@ -426,6 +519,9 @@ def publish_yellow_slice(
         validated_table = validated.append_column(
             "ingested_at_utc", pa.array([], type=pa.timestamp("us", tz="UTC"))
         ).append_column("source_period", pa.array([], type=pa.string()))
+        validated_table = validated_table.append_column(
+            "pickup_at_utc", pa.array([], type=pa.timestamp("us", tz="UTC"))
+        ).append_column("dropoff_at_utc", pa.array([], type=pa.timestamp("us", tz="UTC")))
 
     demand_table = build_hourly_zone_demand(validated_table)
 
@@ -468,6 +564,8 @@ def publish_yellow_slice(
         "input_rows": input_rows,
         "validated_rows": validated_rows,
         "rejected_rows": rejected_rows,
+        "duplicate_rows": duplicate_rows,
+        "duplicate_policy": "preserve_source_rows; replace_period_on_republication",
         "demand_rows": demand_table.num_rows,
         "landing_snapshot_id": _snap_id(landing_handle),
         "validated_snapshot_id": _snap_id(validated_handle),
@@ -499,6 +597,7 @@ def publish_yellow_slice(
         input_rows=input_rows,
         validated_rows=validated_rows,
         rejected_rows=rejected_rows,
+        duplicate_rows=duplicate_rows,
         demand_rows=demand_table.num_rows,
         landing_snapshot_id=manifest["landing_snapshot_id"],
         validated_snapshot_id=manifest["validated_snapshot_id"],

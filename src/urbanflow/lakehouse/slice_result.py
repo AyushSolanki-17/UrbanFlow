@@ -17,6 +17,7 @@ class SliceResult:
     input_rows: int
     validated_rows: int
     rejected_rows: int
+    duplicate_rows: int
     demand_rows: int
     landing_snapshot_id: int | None
     validated_snapshot_id: int | None

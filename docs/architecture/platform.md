@@ -34,7 +34,7 @@ Iceberg is a table format, MinIO stores objects, and the catalog coordinates tab
 4. Produce Gold aggregates and features. Spark is the intended Bronze-to-Silver owner; proposed dbt-trino owns Silver-to-Gold from Stage 2 after adapter validation. Stage 1 uses one selected temporary Gold writer and migrates ownership explicitly.
 5. Query published tables through Trino. The first portal consumes versioned Gold exports; later APIs expose bounded results to the dashboard and authorized tools.
 
-The Stage 1 writer remains an implementation decision. Kafka and Flink are not required merely to load historical Parquet. NiFi becomes useful as ingestion and routing grow.
+Stage 1 currently publishes with PyIceberg and PyArrow through the shared PostgreSQL JDBC catalog, with Trino as the query engine. Spark is still the intended Bronze-to-Silver owner and proposed dbt-trino takes Gold ownership in Stage 2 after compatibility tests. Kafka and Flink are not required to load historical Parquet. NiFi becomes useful as ingestion and routing grow.
 
 ## Streaming and current-state path
 
