@@ -1,10 +1,13 @@
 """Tests for the Yellow Taxi Bronze/Silver/Gold slice."""
 
-from datetime import datetime
+import hashlib
+import json
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pyarrow as pa
 import pyarrow.parquet as pq
+from pyiceberg.catalog import load_catalog
 
 from urbanflow.lakehouse.taxi import _gold_aggregate, _quarantine_table
 
@@ -89,7 +92,7 @@ def test_gold_aggregate_counts():
     assert df["sum_fare"][idx] == 30.0
 
 
-def test_publish_slice_via_file_warehouse(tmp_path: Path):
+def _full_source_table() -> pa.Table:
     source = _small_table()
     for col, typ in [
         ("VendorID", pa.int32()),
@@ -107,14 +110,109 @@ def test_publish_slice_via_file_warehouse(tmp_path: Path):
     ]:
         if col not in source.column_names:
             source = source.append_column(col, pa.array([None] * source.num_rows, type=typ))
-    src_path = tmp_path / "yellow.parquet"
-    pq.write_table(source, src_path)
+    return source
 
-    from urbanflow.lakehouse.taxi import publish_yellow_slice
 
-    result = publish_yellow_slice("2024-01", src_path, use_s3=False)
-    assert result.input_rows == source.num_rows
-    assert result.accepted_rows + result.quarantined_rows == result.input_rows
-    assert result.gold_rows >= 1
-    assert result.manifest_path is not None
-    assert Path(result.manifest_path).is_file()
+def _shift_period(table: pa.Table, days: int) -> pa.Table:
+    for name in ("tpep_pickup_datetime", "tpep_dropoff_datetime"):
+        shifted = [
+            value + timedelta(days=days) if value is not None else None
+            for value in table[name].to_pylist()
+        ]
+        table = table.set_column(
+            table.schema.get_field_index(name), name, pa.array(shifted, type=table[name].type)
+        )
+    return table
+
+
+def test_publish_replaces_only_the_requested_period_and_keeps_history(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    source = _full_source_table()
+    warehouse = tmp_path / "warehouse"
+    warehouse.mkdir()
+    catalog = load_catalog(
+        "test",
+        **{
+            "type": "sql",
+            "uri": f"sqlite:///{tmp_path / 'catalog.db'}",
+            "warehouse": warehouse.as_uri(),
+        },
+    )
+
+    from urbanflow.lakehouse.taxi import _gold_aggregate, _quarantine_table, publish_yellow_slice
+
+    # Seed the original schema so the first publish also verifies its one-time migration.
+    now = datetime.now(UTC)
+    source_sha = hashlib.sha256(b"legacy-january").hexdigest()
+    bronze = source.append_column(
+        "ingested_at_utc", pa.array([now] * source.num_rows, type=pa.timestamp("us", tz="UTC"))
+    ).append_column("source_period", pa.array(["2024-01"] * source.num_rows, type=pa.string()))
+    bronze = bronze.append_column("source_sha256", pa.array([source_sha] * source.num_rows))
+    accepted, rejected = _quarantine_table(source)
+    silver = accepted.append_column(
+        "ingested_at_utc", pa.array([now] * accepted.num_rows, type=pa.timestamp("us", tz="UTC"))
+    ).append_column("source_period", pa.array(["2024-01"] * accepted.num_rows, type=pa.string()))
+    gold = _gold_aggregate(accepted).drop(["source_period"])
+    for namespace in ("bronze", "silver", "gold"):
+        catalog.create_namespace(namespace)
+    for identifier, data in (
+        ("bronze.raw_yellow_trips", bronze),
+        ("silver.clean_trips", silver),
+        ("silver.quarantine_yellow_trips", rejected),
+        ("gold.zone_hour_demand", gold),
+    ):
+        catalog.create_table(identifier, schema=data.schema).append(data)
+
+    jan_path = tmp_path / "january.parquet"
+    feb_path = tmp_path / "february.parquet"
+    correction_path = tmp_path / "january-corrected.parquet"
+    pq.write_table(source, jan_path)
+    pq.write_table(_shift_period(source, 31), feb_path)
+    corrected = source.set_column(
+        source.schema.get_field_index("fare_amount"),
+        "fare_amount",
+        pa.array(
+            [
+                value + 1 if value is not None else None
+                for value in source["fare_amount"].to_pylist()
+            ],
+            type=pa.float64(),
+        ),
+    )
+    pq.write_table(corrected, correction_path)
+
+    january = publish_yellow_slice("2024-01", jan_path, catalog=catalog)
+    february = publish_yellow_slice("2024-02", feb_path, catalog=catalog)
+    corrected_january = publish_yellow_slice("2024-01", correction_path, catalog=catalog)
+    publish_yellow_slice("2024-01", correction_path, catalog=catalog)
+
+    assert corrected_january.input_rows == source.num_rows
+    assert corrected_january.accepted_rows + corrected_january.quarantined_rows == source.num_rows
+    assert corrected_january.source_sha256 != january.source_sha256
+    assert february.source_sha256 != january.source_sha256
+
+    bronze_result = catalog.load_table("bronze.raw_yellow_trips").scan().to_arrow()
+    periods = bronze_result["source_period"].to_pylist()
+    assert bronze_result.num_rows == source.num_rows * 2
+    assert periods.count("2024-01") == source.num_rows
+    assert periods.count("2024-02") == source.num_rows
+    jan_rows = bronze_result.filter(pa.compute.equal(bronze_result["source_period"], "2024-01"))
+    assert set(jan_rows["source_sha256"].to_pylist()) == {corrected_january.source_sha256}
+
+    silver_result = catalog.load_table("silver.clean_trips").scan().to_arrow()
+    rejected_result = catalog.load_table("silver.quarantine_yellow_trips").scan().to_arrow()
+    gold_result = catalog.load_table("gold.zone_hour_demand").scan().to_arrow()
+    assert silver_result.num_rows == corrected_january.accepted_rows + february.accepted_rows
+    assert (
+        rejected_result.num_rows == corrected_january.quarantined_rows + february.quarantined_rows
+    )
+    assert "source_period" in rejected_result.column_names
+    assert set(gold_result["source_period"].to_pylist()) == {"2024-01", "2024-02"}
+    assert gold_result.num_rows == 2
+    retained_gold_snapshots = {
+        snapshot.snapshot_id for snapshot in catalog.load_table("gold.zone_hour_demand").snapshots()
+    }
+    assert january.gold_snapshot_id in retained_gold_snapshots
+    assert json.loads(Path(corrected_january.manifest_path).read_text())["source_sha256"] == (
+        corrected_january.source_sha256
+    )

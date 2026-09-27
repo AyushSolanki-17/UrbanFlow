@@ -2,13 +2,17 @@
 
 [Documentation index](../README.md) · [Contracts](../data-model/contracts.md)
 
-**Status:** required design behavior; discovery, scheduling, manifests and publication jobs remain to be implemented.
+**Status:** period-scoped publication is implemented for the first analytical slice. Latest-period discovery, scheduling, competing-writer coordination and atomic multi-table release advancement remain open.
 
 ## Implemented source-acquisition slice
 
 The CLI fetches an explicitly requested monthly TLC Yellow Taxi object using the period-derived CloudFront URL. Python's standard library handles HTTP and streaming. Files are written to a temporary path, checked against `Content-Length` and Parquet magic bytes, hashed with SHA-256, then placed under a source/period/checksum path without replacing an existing release. Repeating a request reuses a verified local release; `--refresh` fetches the source again so changed content is retained separately. Failed attempts are recorded and partial files are removed. This does not discover the latest period or publish a table.
 
 Each attempt and immutable release is recorded in the configured PostgreSQL metadata database. Run metadata includes source ID, period, URL, status, timezone-aware UTC start/completion, attempts, output path, byte count, SHA-256, ETag, source Last-Modified header and failure detail. Release records reserve nullable row count and JSON schema metadata for later validation. HTTP Last-Modified is distinct from source publication time; it is not treated as a verified publication timestamp. See the [source contract](../data-model/contracts.md) for the CLI and path layout.
+
+## Implemented period-scoped slice publication
+
+`publish-yellow-slice` writes `source_period` into Bronze, Silver, quarantine and Gold. A new period appends its rows; publishing a period already present replaces only rows tagged with that period in each table. A correction is recomputed from its selected source release, so repeating or correcting one month does not add duplicate rows or remove other months. Iceberg overwrites retain prior snapshots. Tables created by the original single-period publisher receive a one-time `source_period` backfill before their first scoped update; a missing timestamp with ambiguous legacy periods fails rather than guessing. The manifest records the resulting snapshots after all table commits. The four Iceberg commits are independent, so this does not claim an atomic multi-table release or safe concurrent writes to the same period.
 
 ## Two workloads, shared semantics
 
@@ -22,7 +26,7 @@ Do not hard-code one month or year into transformations. Configure city/source, 
 2. Admit the run only if its estimated download, transform and rewrite peaks fit the active environment's budget. Schedule refreshes and backfills separately so a large backfill cannot silently starve recent data.
 3. Download to an isolated location, verify integrity, and preserve an immutable landing reference. Record source identity and observed timestamps.
 4. Validate schema and normalize to Bronze/Silver with accepted, quarantined and duplicate counts. New or incompatible schemas fail publication or take an explicit migration path.
-5. Recompute affected Gold periods and dependent context joins. Reconcile totals before exposing them.
+5. Recompute the affected Gold period and dependent context joins. Reconcile totals before exposing them.
 6. Commit table snapshots and publish a release manifest referencing the exact snapshots used. Multiple table commits are not assumed to be one transaction; readers needing a consistent multi-table view use that manifest.
 7. Advance the consumer-visible release pointer through serialized publication or a compare-and-swap against its expected predecessor. Completion time is not release precedence: a slow older backfill must not replace a newer source revision or remove already published periods. Rebase/revalidate a stale candidate against the current release, preserving unaffected source-period mappings. Explicit rollback is a separate audited operation.
 8. Mark the run published only after its consumer-visible release succeeds. A failed refresh leaves the previous valid release available with unchanged freshness labels and an observable failure status.

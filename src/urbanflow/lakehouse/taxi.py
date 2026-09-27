@@ -9,7 +9,7 @@ Grain:
   * Bronze ``bronze.raw_yellow_trips`` — source fidelity, 19 columns + provenance
   * Silver ``silver.clean_trips`` — validated rows
   * Quarantine ``silver.quarantine_yellow_trips`` — rejected rows + reason
-  * Gold ``gold.zone_hour_demand`` — ``(city, zone, hour)`` with counts/averages
+  * Gold ``gold.zone_hour_demand`` — ``(city, zone, hour, source_period)`` with counts/averages
 
 The pipeline is intentionally small and runs on a deterministic
 slice of the January 2024 sample so it fits the 20 GB peak budget.
@@ -26,6 +26,9 @@ from typing import Any
 import pyarrow as pa
 import pyarrow.compute as pc
 import pyarrow.parquet as pq
+from pyiceberg.exceptions import NoSuchTableError
+from pyiceberg.expressions import AlwaysTrue, EqualTo
+from pyiceberg.types import StringType
 
 from urbanflow.lakehouse.catalog import load_spike_catalog, load_spike_s3_catalog
 
@@ -151,9 +154,9 @@ def _quarantine_table(
 def _gold_aggregate(clean: pa.Table) -> pa.Table:
     """Aggregate ``clean`` to ``gold.zone_hour_demand`` grain.
 
-    Grain is ``(city, zone, hour)`` where hour is the pickup hour
-    truncated to the hour in UTC (source times are treated as UTC for
-    the spike; DST handling is deferred per contracts.md).
+    The business grain is ``(city, zone, hour)`` where hour is the pickup
+    hour truncated to the hour in UTC. ``source_period`` remains as a
+    provenance dimension so a refresh can replace one source month.
     Measures: trip_count, avg_distance, avg_fare, sum_fare.
     """
     if clean.num_rows == 0:
@@ -166,6 +169,7 @@ def _gold_aggregate(clean: pa.Table) -> pa.Table:
                 "avg_distance": pa.array([], type=pa.float64()),
                 "avg_fare": pa.array([], type=pa.float64()),
                 "sum_fare": pa.array([], type=pa.float64()),
+                "source_period": pa.array([], type=pa.string()),
             }
         )
 
@@ -201,12 +205,17 @@ def _gold_aggregate(clean: pa.Table) -> pa.Table:
             "city": city,
             "zone": zone,
             "hour": hour,
+            "source_period": (
+                clean["source_period"]
+                if "source_period" in clean.column_names
+                else pa.nulls(clean.num_rows, type=pa.string())
+            ),
             "trip_distance": clean["trip_distance"].cast(pa.float64()),
             "fare_amount": clean["fare_amount"].cast(pa.float64()),
         }
     )
 
-    grouped = tbl.group_by(["city", "zone", "hour"]).aggregate(
+    grouped = tbl.group_by(["city", "zone", "hour", "source_period"]).aggregate(
         [
             ("trip_distance", "count"),
             ("trip_distance", "mean"),
@@ -225,7 +234,18 @@ def _gold_aggregate(clean: pa.Table) -> pa.Table:
         }
     )
     # Ensure types
-    return renamed
+    return renamed.select(
+        [
+            "city",
+            "zone",
+            "hour",
+            "trip_count",
+            "avg_distance",
+            "avg_fare",
+            "sum_fare",
+            "source_period",
+        ]
+    )
 
 
 def _ensure_namespace(catalog, namespace: str) -> None:
@@ -240,29 +260,91 @@ def _write_iceberg_table(
     identifier: str,
     data: pa.Table,
     *,
-    overwrite: bool = True,
+    period: str,
+    legacy_periods: set[str],
 ) -> Any:
-    """Create or overwrite an Iceberg table and append ``data``."""
-    if overwrite:
-        try:
-            catalog.drop_table(identifier)
-        except Exception:
-            pass
+    """Replace one source period while retaining every other period."""
+    try:
+        table = catalog.load_table(identifier)
+    except NoSuchTableError:
         ns = identifier.split(".")[0]
         _ensure_namespace(catalog, ns)
         table = catalog.create_table(identifier, schema=data.schema)
+        if data.num_rows > 0:
+            table.append(data)
     else:
+        table = _add_legacy_period_column(catalog, table, identifier, legacy_periods)
+        matching_rows = table.scan(
+            row_filter=EqualTo("source_period", period), selected_fields=["source_period"]
+        ).to_arrow()
+        if matching_rows.num_rows > 0:
+            table.overwrite(
+                data,
+                overwrite_filter=EqualTo("source_period", period),
+                snapshot_properties={"urbanflow.source_period": period},
+            )
+        elif data.num_rows > 0:
+            table.append(data)
+    return catalog.load_table(identifier)
+
+
+def _add_legacy_period_column(catalog, table, identifier: str, legacy_periods: set[str]):
+    """Backfill the period field in tables created before period-scoped writes."""
+    field_names = table.schema().column_names
+    if "source_period" in field_names:
+        return table
+
+    existing = table.scan().to_arrow()
+    time_column = "hour" if "hour" in existing.column_names else "tpep_pickup_datetime"
+    if time_column not in existing.column_names:
+        raise ValueError(f"cannot infer source_period for legacy table {identifier}")
+
+    fallback_period = next(iter(legacy_periods)) if len(legacy_periods) == 1 else None
+    values = []
+    for value in existing[time_column].to_pylist():
+        if value is None:
+            if fallback_period is None:
+                raise ValueError(
+                    f"cannot safely backfill null timestamps in {identifier}; "
+                    "legacy source periods are ambiguous"
+                )
+            values.append(fallback_period)
+        else:
+            values.append(f"{value.year:04d}-{value.month:02d}")
+    backfilled = existing.append_column("source_period", pa.array(values, type=pa.string()))
+
+    table.update_schema().add_column("source_period", StringType()).commit()
+    table = catalog.load_table(identifier)
+    table.overwrite(
+        backfilled,
+        overwrite_filter=AlwaysTrue(),
+        snapshot_properties={"urbanflow.operation": "legacy_period_backfill"},
+    )
+    return catalog.load_table(identifier)
+
+
+def _existing_source_periods(catalog, identifier: str) -> set[str]:
+    """Read existing period labels to support safe one-time schema backfill."""
+    try:
+        table = catalog.load_table(identifier)
+    except NoSuchTableError:
+        return set()
+    if "source_period" not in table.schema().column_names:
+        return set()
+    periods = table.scan(selected_fields=["source_period"]).to_arrow()["source_period"].to_pylist()
+    return {period for period in periods if period is not None}
+
+
+def _needs_legacy_period_backfill(catalog, identifiers: tuple[str, ...]) -> bool:
+    """Return whether any published table predates period-scoped writes."""
+    for identifier in identifiers:
         try:
             table = catalog.load_table(identifier)
-        except Exception:
-            ns = identifier.split(".")[0]
-            _ensure_namespace(catalog, ns)
-            table = catalog.create_table(identifier, schema=data.schema)
-            table.append(data)
-            return table
-    if data.num_rows > 0:
-        table.append(data)
-    return table
+        except NoSuchTableError:
+            continue
+        if "source_period" not in table.schema().column_names:
+            return True
+    return False
 
 
 def publish_yellow_slice(
@@ -294,6 +376,12 @@ def publish_yellow_slice(
     source_path = Path(source_path)
     if not source_path.is_file():
         raise FileNotFoundError(f"source release not found: {source_path}")
+    try:
+        parsed_period = datetime.strptime(period, "%Y-%m")
+    except ValueError as error:
+        raise ValueError("period must use YYYY-MM format") from error
+    if parsed_period.strftime("%Y-%m") != period:
+        raise ValueError("period must use YYYY-MM format")
 
     if catalog is None:
         catalog = load_spike_s3_catalog() if use_s3 else load_spike_catalog()
@@ -327,6 +415,9 @@ def publish_yellow_slice(
     quarantined_rows = quarantined.num_rows
     # Invariant: accepted + quarantined == input
     assert accepted_rows + quarantined_rows == input_rows
+    quarantined = quarantined.append_column(
+        "source_period", pa.array([period] * quarantined_rows, type=pa.string())
+    )
 
     # For Silver, add same provenance to accepted rows if any.
     if accepted_rows > 0:
@@ -337,23 +428,36 @@ def publish_yellow_slice(
             "source_period", pa.array([period] * accepted_rows, type=pa.string())
         )
     else:
-        silver_table = accepted
+        silver_table = accepted.append_column(
+            "ingested_at_utc", pa.array([], type=pa.timestamp("us", tz="UTC"))
+        ).append_column("source_period", pa.array([], type=pa.string()))
 
     gold_table = _gold_aggregate(silver_table if accepted_rows > 0 else silver_table)
 
-    # Publish to Iceberg
+    # Publish to Iceberg, replacing only this source period.
     bronze_id = "bronze.raw_yellow_trips"
     silver_id = "silver.clean_trips"
     quarantine_id = "silver.quarantine_yellow_trips"
     gold_id = "gold.zone_hour_demand"
 
-    # For the Stage 1 slice proof we overwrite all three so that
-    # input_rows == accepted + quarantined remains a checkable invariant
-    # per run. Later historical periods can append or partition.
-    bronze_handle = _write_iceberg_table(catalog, bronze_id, bronze_table, overwrite=True)
-    silver_handle = _write_iceberg_table(catalog, silver_id, silver_table, overwrite=True)
-    _write_iceberg_table(catalog, quarantine_id, quarantined, overwrite=True)
-    gold_handle = _write_iceberg_table(catalog, gold_id, gold_table, overwrite=True)
+    table_ids = (bronze_id, silver_id, quarantine_id, gold_id)
+    legacy_periods = (
+        _existing_source_periods(catalog, bronze_id)
+        if _needs_legacy_period_backfill(catalog, table_ids)
+        else set()
+    )
+    bronze_handle = _write_iceberg_table(
+        catalog, bronze_id, bronze_table, period=period, legacy_periods=legacy_periods
+    )
+    silver_handle = _write_iceberg_table(
+        catalog, silver_id, silver_table, period=period, legacy_periods=legacy_periods
+    )
+    _write_iceberg_table(
+        catalog, quarantine_id, quarantined, period=period, legacy_periods=legacy_periods
+    )
+    gold_handle = _write_iceberg_table(
+        catalog, gold_id, gold_table, period=period, legacy_periods=legacy_periods
+    )
 
     # Snapshot IDs for pinned experiments
     def _snap_id(handle) -> int | None:

@@ -41,11 +41,11 @@ Existing `download_yellow_taxi` tests cover new period, corrected period, resour
 
 ### Gold
 
-`_gold_aggregate` groups clean trips by `city="NYC"`, `zone=PULocationID`, `hour=floor(pickup hour, UTC)` via `pyarrow.compute.floor_temporal` and `group_by(...).aggregate`.
+`_gold_aggregate` groups clean trips by `city="NYC"`, `zone=PULocationID`, `hour=floor(pickup hour, UTC)`, and source-period provenance via `pyarrow.compute.floor_temporal` and `group_by(...).aggregate`.
 
 ### Writer
 
-Same PostgreSQL JDBC catalog `spike_pg` as the foundation spike, file warehouse `file://…/.local/spike-iceberg/warehouse` (and S3 variant `s3://warehouse` via `load_spike_s3_catalog` with S3Mock). `publish_yellow_slice` (`src/urbanflow/lakehouse/taxi.py:publish_yellow_slice`) overwrites all four tables per run for deterministic counts and returns a `SliceResult` with row counts, snapshot IDs, and a manifest at `.local/lakehouse/period=YYYY-MM/slice_manifest.json`.
+Same PostgreSQL JDBC catalog `spike_pg` as the foundation spike, file warehouse `file://…/.local/spike-iceberg/warehouse` (and S3 variant `s3://warehouse` via `load_spike_s3_catalog` with S3Mock). `publish_yellow_slice` (`src/urbanflow/lakehouse/taxi.py:publish_yellow_slice`) replaces only the selected period in each table, preserves other periods and prior snapshots, and returns a `SliceResult` with row counts, snapshot IDs, and a manifest at `.local/lakehouse/period=YYYY-MM/slice_manifest.json`.
 
 ### CLI
 
@@ -87,8 +87,12 @@ Unit:
 
 ### Reconciliation and pinning
 
+### Period-scoped replacement check (2026-09-27)
+
+The publisher now tags all four tables with `source_period`. A targeted Iceberg test seeds tables using the earlier whole-table schema, publishes a new February period, publishes a corrected January release, and repeats that correction. It verifies that the two periods remain, January contains only the corrected checksum, accepted and rejected counts reconcile, and period labels appear in quarantine and Gold. Legacy quarantine/Gold tables are migrated once by deriving periods from their timestamps (using the existing landing period for null timestamps); ambiguous legacy rows fail safely. The test uses a disposable SQLite catalog and temporary directory. It does not test concurrent writers or atomic commits across the four tables.
+
 - Accepted/quarantined/duplicate totals reconcile per run; parsing failures are separate and block publication via the quarantine table.
-- Gold is recomputed from Silver; a refresh would publish a new Gold snapshot/version while a pinned experiment retains its snapshot ID from `slice_manifest.json` (`bronze_snapshot_id`/`silver_snapshot_id`/`gold_snapshot_id`).
+- Gold is recomputed from Silver; a correction publishes a new snapshot/version for the affected period while prior snapshots remain available. Each run's manifest lists its `bronze_snapshot_id`/`silver_snapshot_id`/`gold_snapshot_id`.
 - One-trip trace: a raw pickup at `2024-01-01T00:10:00, PULocationID 1` appears in `bronze`, passes quarantine into `silver`, and contributes to `gold` hour `2024-01-01T00:00:00Z, zone 1`.
 
 ### Resource
@@ -97,5 +101,6 @@ Slices are limited via `--limit-rows` to stay within the 20 GB peak (file wareho
 
 ## What remains
 
+- Latest-month discovery, explicit duplicate disposition, and a minimal query/demo surface (Stage 1).
 - dbt-trino Gold ownership transfer and Airflow scheduling with idempotency (Stage 2).
 - Measured comparison report under `docs/operations/benchmarks.md` and portal export.
