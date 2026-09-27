@@ -1,1 +1,1 @@
-"""Lakehouse utilities for the Stage 1 catalog compatibility spike."""
+"""Lakehouse utilities for Bronze / Silver / Gold publication."""

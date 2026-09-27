@@ -1,4 +1,4 @@
-"""Small developer entry point for the foundation package."""
+"""Command-line entry point for UrbanFlow pipelines."""
 
 import argparse
 import json
@@ -51,7 +51,7 @@ def main(argv: list[str] | None = None) -> int:
         "--limit-rows",
         type=int,
         default=None,
-        help="limit the published slice to the first N source rows (keeps the spike small)",
+        help="limit the published slice to the first N source rows (keeps local runs small)",
     )
     args = parser.parse_args(argv)
     try:
@@ -115,13 +115,13 @@ def main(argv: list[str] | None = None) -> int:
                 if not source_path.is_file():
                     parser.exit(1, f"urbanflow: source-path does not exist: {source_path}\n")
 
-            # Optionally slice the source for a small proof to stay within the 20 GB peak.
+            # Optionally slice the source to stay within the 20 GB peak.
             if args.limit_rows is not None:
                 import pyarrow.parquet as pq
 
                 tmp_slice = Path.cwd() / ".local" / "publish_slice_tmp.parquet"
                 tmp_slice.parent.mkdir(parents=True, exist_ok=True)
-                # Read just the first N rows for a small proof
+                # Read just the first N rows for a small deterministic run.
                 tbl = pq.read_table(source_path).slice(0, args.limit_rows)
                 pq.write_table(tbl, tmp_slice)
                 source_path = tmp_slice
@@ -131,7 +131,21 @@ def main(argv: list[str] | None = None) -> int:
                 source_path,
                 use_s3=args.use_s3,
             )
-            print(json.dumps(result.__dict__, indent=2, default=str))
+            payload = asdict(result)
+            payload.update(
+                bronze_table=result.bronze_table,
+                silver_table=result.silver_table,
+                quarantine_table=result.quarantine_table,
+                gold_table=result.gold_table,
+                accepted_rows=result.accepted_rows,
+                quarantined_rows=result.quarantined_rows,
+                gold_rows=result.gold_rows,
+                bronze_snapshot_id=result.bronze_snapshot_id,
+                silver_snapshot_id=result.silver_snapshot_id,
+                gold_snapshot_id=result.gold_snapshot_id,
+                gold_schema=result.gold_schema,
+            )
+            print(json.dumps(payload, indent=2, default=str))
             return 0
         except (OSError, RuntimeError, ValueError, psycopg.Error) as error:
             parser.exit(1, f"urbanflow: publish error: {error}\n")

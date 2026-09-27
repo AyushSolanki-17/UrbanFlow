@@ -1,8 +1,7 @@
 """Tests for the Yellow Taxi Bronze/Silver/Gold slice."""
 
-import hashlib
 import json
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import pyarrow as pa
@@ -139,29 +138,7 @@ def test_publish_replaces_only_the_requested_period_and_keeps_history(tmp_path, 
         },
     )
 
-    from urbanflow.lakehouse.taxi import _gold_aggregate, _quarantine_table, publish_yellow_slice
-
-    # Seed the original schema so the first publish also verifies its one-time migration.
-    now = datetime.now(UTC)
-    source_sha = hashlib.sha256(b"legacy-january").hexdigest()
-    bronze = source.append_column(
-        "ingested_at_utc", pa.array([now] * source.num_rows, type=pa.timestamp("us", tz="UTC"))
-    ).append_column("source_period", pa.array(["2024-01"] * source.num_rows, type=pa.string()))
-    bronze = bronze.append_column("source_sha256", pa.array([source_sha] * source.num_rows))
-    accepted, rejected = _quarantine_table(source)
-    silver = accepted.append_column(
-        "ingested_at_utc", pa.array([now] * accepted.num_rows, type=pa.timestamp("us", tz="UTC"))
-    ).append_column("source_period", pa.array(["2024-01"] * accepted.num_rows, type=pa.string()))
-    gold = _gold_aggregate(accepted).drop(["source_period"])
-    for namespace in ("bronze", "silver", "gold"):
-        catalog.create_namespace(namespace)
-    for identifier, data in (
-        ("bronze.raw_yellow_trips", bronze),
-        ("silver.clean_trips", silver),
-        ("silver.quarantine_yellow_trips", rejected),
-        ("gold.zone_hour_demand", gold),
-    ):
-        catalog.create_table(identifier, schema=data.schema).append(data)
+    from urbanflow.lakehouse.taxi import publish_yellow_slice
 
     jan_path = tmp_path / "january.parquet"
     feb_path = tmp_path / "february.parquet"
@@ -191,7 +168,18 @@ def test_publish_replaces_only_the_requested_period_and_keeps_history(tmp_path, 
     assert corrected_january.source_sha256 != january.source_sha256
     assert february.source_sha256 != january.source_sha256
 
-    bronze_result = catalog.load_table("bronze.raw_yellow_trips").scan().to_arrow()
+    from urbanflow.lakehouse.table_identifier import (
+        CURATED_REJECTED_YELLOW_TRIPS,
+        CURATED_VALIDATED_YELLOW_TRIPS,
+        LANDING_RAW_YELLOW_TRIPS,
+        SERVING_HOURLY_ZONE_DEMAND,
+    )
+
+    landing_id = str(LANDING_RAW_YELLOW_TRIPS)
+    validated_id = str(CURATED_VALIDATED_YELLOW_TRIPS)
+    rejected_id = str(CURATED_REJECTED_YELLOW_TRIPS)
+    demand_id = str(SERVING_HOURLY_ZONE_DEMAND)
+    bronze_result = catalog.load_table(landing_id).scan().to_arrow()
     periods = bronze_result["source_period"].to_pylist()
     assert bronze_result.num_rows == source.num_rows * 2
     assert periods.count("2024-01") == source.num_rows
@@ -199,9 +187,9 @@ def test_publish_replaces_only_the_requested_period_and_keeps_history(tmp_path, 
     jan_rows = bronze_result.filter(pa.compute.equal(bronze_result["source_period"], "2024-01"))
     assert set(jan_rows["source_sha256"].to_pylist()) == {corrected_january.source_sha256}
 
-    silver_result = catalog.load_table("silver.clean_trips").scan().to_arrow()
-    rejected_result = catalog.load_table("silver.quarantine_yellow_trips").scan().to_arrow()
-    gold_result = catalog.load_table("gold.zone_hour_demand").scan().to_arrow()
+    silver_result = catalog.load_table(validated_id).scan().to_arrow()
+    rejected_result = catalog.load_table(rejected_id).scan().to_arrow()
+    gold_result = catalog.load_table(demand_id).scan().to_arrow()
     assert silver_result.num_rows == corrected_january.accepted_rows + february.accepted_rows
     assert (
         rejected_result.num_rows == corrected_january.quarantined_rows + february.quarantined_rows
@@ -210,7 +198,7 @@ def test_publish_replaces_only_the_requested_period_and_keeps_history(tmp_path, 
     assert set(gold_result["source_period"].to_pylist()) == {"2024-01", "2024-02"}
     assert gold_result.num_rows == 2
     retained_gold_snapshots = {
-        snapshot.snapshot_id for snapshot in catalog.load_table("gold.zone_hour_demand").snapshots()
+        snapshot.snapshot_id for snapshot in catalog.load_table(demand_id).snapshots()
     }
     assert january.gold_snapshot_id in retained_gold_snapshots
     assert json.loads(Path(corrected_january.manifest_path).read_text())["source_sha256"] == (

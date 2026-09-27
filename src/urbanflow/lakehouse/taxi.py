@@ -1,24 +1,20 @@
-"""Bronze / Silver / Gold pipeline for Yellow Taxi — Stage 1 analytical slice.
+"""Yellow Taxi pipeline from Bronze to Silver to Gold.
 
-Proves one complete path from a downloaded Parquet release to a
-published Gold aggregate, with quarantine/reconciliation and a pinned
-snapshot. Uses the same PostgreSQL JDBC catalog as the foundation
-spike, so the tables are queryable via Trino.
+Publishes one complete path from a downloaded Parquet release to
+hourly demand aggregates, with rejected-row handling, reconciliation
+and pinned snapshots. Uses the shared PostgreSQL JDBC catalog so
+tables are queryable via Trino.
 
-Grain:
-  * Bronze ``bronze.raw_yellow_trips`` — source fidelity, 19 columns + provenance
-  * Silver ``silver.clean_trips`` — validated rows
-  * Quarantine ``silver.quarantine_yellow_trips`` — rejected rows + reason
-  * Gold ``gold.zone_hour_demand`` — ``(city, zone, hour, source_period)`` with counts/averages
-
-The pipeline is intentionally small and runs on a deterministic
-slice of the January 2024 sample so it fits the 20 GB peak budget.
+Tables:
+  * ``bronze.raw_yellow_trips`` — source fidelity + provenance
+  * ``silver.clean_trips`` — validated rows
+  * ``silver.quarantine_yellow_trips`` — rejected rows + reason
+  * ``gold.zone_hour_demand`` — ``(city, zone, hour, source_period)`` with counts/averages
 """
 
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -30,7 +26,15 @@ from pyiceberg.exceptions import NoSuchTableError
 from pyiceberg.expressions import AlwaysTrue, EqualTo
 from pyiceberg.types import StringType
 
-from urbanflow.lakehouse.catalog import load_spike_catalog, load_spike_s3_catalog
+from urbanflow.lakehouse.catalog import load_catalog, load_s3_catalog
+from urbanflow.lakehouse.rejection_reason import RejectionReason
+from urbanflow.lakehouse.slice_result import SliceResult
+from urbanflow.lakehouse.table_identifier import (
+    CURATED_REJECTED_YELLOW_TRIPS,
+    CURATED_VALIDATED_YELLOW_TRIPS,
+    LANDING_RAW_YELLOW_TRIPS,
+    SERVING_HOURLY_ZONE_DEMAND,
+)
 
 # NYC zone IDs are 1..265 for the current taxi-zone vintage.
 _NYC_ZONE_MIN, _NYC_ZONE_MAX = 1, 265
@@ -39,32 +43,10 @@ _NYC_ZONE_MIN, _NYC_ZONE_MAX = 1, 265
 _PASSENGER_MIN, _PASSENGER_MAX = 1, 6
 
 
-@dataclass(frozen=True)
-class SliceResult:
-    """Summary of a published Yellow slice."""
-
-    period: str
-    source_sha256: str
-    source_row_count: int
-    bronze_table: str
-    silver_table: str
-    quarantine_table: str
-    gold_table: str
-    input_rows: int
-    accepted_rows: int
-    quarantined_rows: int
-    gold_rows: int
-    bronze_snapshot_id: int | None
-    silver_snapshot_id: int | None
-    gold_snapshot_id: int | None
-    gold_schema: list[str]
-    manifest_path: str
-
-
-def _quarantine_table(
+def split_validated_and_rejected(
     table: pa.Table,
 ) -> tuple[pa.Table, pa.Table]:
-    """Split ``table`` into accepted and quarantined rows.
+    """Split ``table`` into validated and rejected rows.
 
     Validation rules (per contracts.md Quality):
     * ``tpep_pickup_datetime`` and ``tpep_dropoff_datetime`` not null
@@ -73,13 +55,14 @@ def _quarantine_table(
     * ``trip_distance`` and ``fare_amount`` >= 0
     * ``passenger_count`` in 1..6 when not null
 
-    Returns ``(accepted, quarantine)`` where quarantine has an extra
-    ``quarantine_reason`` column.
+    Returns:
+        Tuple of ``(validated, rejected)`` where rejected has an extra
+        ``rejection_reason`` column of type :class:`RejectionReason`.
     """
     n = table.num_rows
     if n == 0:
-        empty_q = table.append_column("quarantine_reason", pa.array([], type=pa.string()))
-        return table, empty_q
+        empty_rejected = table.append_column("rejection_reason", pa.array([], type=pa.string()))
+        return table, empty_rejected
 
     pickup = table["tpep_pickup_datetime"]
     dropoff = table["tpep_dropoff_datetime"]
@@ -87,79 +70,105 @@ def _quarantine_table(
     do = table["DOLocationID"]
     distance = table["trip_distance"]
     fare = table["fare_amount"]
-    # passenger_count may be null
     passenger = table["passenger_count"] if "passenger_count" in table.column_names else None
 
-    reasons: list[str | None] = [None] * n
+    reasons: list[RejectionReason | None] = [None] * n
 
     for i in range(n):
-        # Missing timestamps — most critical.
         if pickup[i].as_py() is None or dropoff[i].as_py() is None:
-            reasons[i] = "missing_pickup_or_dropoff"
+            reasons[i] = RejectionReason.MISSING_TIMESTAMPS
             continue
         pu_pick = pickup[i].as_py()
         pu_drop = dropoff[i].as_py()
         if pu_drop < pu_pick:
-            reasons[i] = "dropoff_before_pickup"
+            reasons[i] = RejectionReason.DROPOFF_BEFORE_PICKUP
             continue
         pu_val = pu[i].as_py()
         do_val = do[i].as_py()
         if pu_val is not None and not (_NYC_ZONE_MIN <= pu_val <= _NYC_ZONE_MAX):
-            reasons[i] = "invalid_PULocationID"
+            reasons[i] = RejectionReason.INVALID_PICKUP_ZONE
             continue
         if do_val is not None and not (_NYC_ZONE_MIN <= do_val <= _NYC_ZONE_MAX):
-            reasons[i] = "invalid_DOLocationID"
+            reasons[i] = RejectionReason.INVALID_DROPOFF_ZONE
             continue
         dist = distance[i].as_py()
         if dist is not None and dist < 0:
-            reasons[i] = "negative_distance"
+            reasons[i] = RejectionReason.NEGATIVE_DISTANCE
             continue
         fare_v = fare[i].as_py()
         if fare_v is not None and fare_v < 0:
-            reasons[i] = "negative_fare"
+            reasons[i] = RejectionReason.NEGATIVE_FARE
             continue
         if passenger is not None:
             pc_val = passenger[i].as_py()
             if pc_val is not None and not (_PASSENGER_MIN <= pc_val <= _PASSENGER_MAX):
-                reasons[i] = "invalid_passenger_count"
+                reasons[i] = RejectionReason.INVALID_PASSENGER_COUNT
                 continue
 
-    mask_accepted = [r is None for r in reasons]
-    mask_quarantine = [r is not None for r in reasons]
+    mask_validated = [r is None for r in reasons]
+    mask_rejected = [r is not None for r in reasons]
 
-    # Build quarantine table with reason.
-    if any(mask_quarantine):
-        quarantined_indices = [i for i, m in enumerate(mask_quarantine) if m]
-        quarantine_reasons = [reasons[i] for i in quarantined_indices]
-        q_table = table.take(quarantined_indices)
-        q_table = q_table.append_column(
-            "quarantine_reason", pa.array(quarantine_reasons, type=pa.string())
+    if any(mask_rejected):
+        rejected_indices = [i for i, m in enumerate(mask_rejected) if m]
+        rejected_reasons: list[str | None] = [
+            str(reasons[i]) if reasons[i] is not None else None for i in rejected_indices
+        ]
+        rejected_table = table.take(rejected_indices)
+        rejected_table = rejected_table.append_column(
+            "rejection_reason", pa.array(rejected_reasons, type=pa.string())
         )
     else:
-        q_table = table.slice(0, 0).append_column(
-            "quarantine_reason", pa.array([], type=pa.string())
+        rejected_table = table.slice(0, 0).append_column(
+            "rejection_reason", pa.array([], type=pa.string())
         )
 
-    if all(mask_accepted):
-        accepted = table
-    elif any(mask_accepted):
-        accepted_indices = [i for i, m in enumerate(mask_accepted) if m]
-        accepted = table.take(accepted_indices)
+    if all(mask_validated):
+        validated = table
+    elif any(mask_validated):
+        validated_indices = [i for i, m in enumerate(mask_validated) if m]
+        validated = table.take(validated_indices)
     else:
-        accepted = table.slice(0, 0)
+        validated = table.slice(0, 0)
 
-    return accepted, q_table
+    return validated, rejected_table
 
 
-def _gold_aggregate(clean: pa.Table) -> pa.Table:
-    """Aggregate ``clean`` to ``gold.zone_hour_demand`` grain.
+def _quarantine_table(table: pa.Table) -> tuple[pa.Table, pa.Table]:
+    """Backward-compatible alias that returns ``quarantine_reason`` column.
 
-    The business grain is ``(city, zone, hour)`` where hour is the pickup
-    hour truncated to the hour in UTC. ``source_period`` remains as a
-    provenance dimension so a refresh can replace one source month.
+    Old callers expect ``quarantine_reason`` and ``invalid_PULocationID``
+    style strings. This wrapper translates the new typed output for
+    compatibility.
+    """
+    validated, rejected = split_validated_and_rejected(table)
+    # Translate new column/reason strings to legacy values for compat.
+    if "rejection_reason" in rejected.column_names:
+        reasons = rejected["rejection_reason"].to_pylist()
+        legacy = [
+            r.replace("invalid_pickup_zone", "invalid_PULocationID").replace(
+                "invalid_dropoff_zone", "invalid_DOLocationID"
+            )
+            if r is not None
+            else None
+            for r in reasons
+        ]
+        # Replace column name
+        idx = rejected.schema.get_field_index("rejection_reason")
+        rejected = rejected.set_column(idx, "quarantine_reason", pa.array(legacy, type=pa.string()))
+    elif "quarantine_reason" not in rejected.column_names and rejected.num_rows == 0:
+        # Ensure empty case has legacy column
+        rejected = rejected.append_column("quarantine_reason", pa.array([], type=pa.string()))
+    return validated, rejected
+
+
+def build_hourly_zone_demand(validated: pa.Table) -> pa.Table:
+    """Aggregate ``validated`` trips to ``gold.zone_hour_demand`` grain.
+
+    Business grain is ``(city, zone, hour)`` where hour is pickup hour
+    truncated to UTC. ``source_period`` is retained for period-scoped refreshes.
     Measures: trip_count, avg_distance, avg_fare, sum_fare.
     """
-    if clean.num_rows == 0:
+    if validated.num_rows == 0:
         return pa.table(
             {
                 "city": pa.array([], type=pa.string()),
@@ -173,30 +182,21 @@ def _gold_aggregate(clean: pa.Table) -> pa.Table:
             }
         )
 
-    # Build arrays for grouping.
-    city = pa.array(["NYC"] * clean.num_rows, type=pa.string())
-    zone = clean["PULocationID"].cast(pa.int32())
-    # Truncate pickup to hour — pyarrow compute floor.
-    pickup = clean["tpep_pickup_datetime"]
-    # Ensure timestamp is UTC for hour bucketing. Source is naive wall time;
-    # for the spike we treat it as UTC and cast.
+    city = pa.array(["NYC"] * validated.num_rows, type=pa.string())
+    zone = validated["PULocationID"].cast(pa.int32())
+    pickup = validated["tpep_pickup_datetime"]
     if pickup.type.tz is None:
-        # Treat naive as UTC by casting (no shift, just label).
         pickup_utc = pickup.cast(pa.timestamp("us", tz="UTC"))
     else:
         pickup_utc = pickup
-    # Floor to hour: use pc.floor_temporal or manual via cast?
-    # PyArrow 25 has pc.floor_temporal
     try:
         hour = pc.floor_temporal(pickup_utc, 60 * 60, "s")
     except Exception:
-        # Fallback: strip minutes/seconds via python
-        py_hours = []
+        py_hours: list[datetime | None] = []
         for v in pickup_utc.to_pylist():
             if v is None:
                 py_hours.append(None)
             else:
-                # v is datetime with tz UTC
                 py_hours.append(v.replace(minute=0, second=0, microsecond=0))
         hour = pa.array(py_hours, type=pa.timestamp("us", tz="UTC"))
 
@@ -205,13 +205,11 @@ def _gold_aggregate(clean: pa.Table) -> pa.Table:
             "city": city,
             "zone": zone,
             "hour": hour,
-            "source_period": (
-                clean["source_period"]
-                if "source_period" in clean.column_names
-                else pa.nulls(clean.num_rows, type=pa.string())
-            ),
-            "trip_distance": clean["trip_distance"].cast(pa.float64()),
-            "fare_amount": clean["fare_amount"].cast(pa.float64()),
+            "source_period": validated["source_period"]
+            if "source_period" in validated.column_names
+            else pa.nulls(validated.num_rows, type=pa.string()),
+            "trip_distance": validated["trip_distance"].cast(pa.float64()),
+            "fare_amount": validated["fare_amount"].cast(pa.float64()),
         }
     )
 
@@ -223,8 +221,6 @@ def _gold_aggregate(clean: pa.Table) -> pa.Table:
             ("fare_amount", "sum"),
         ]
     )
-    # Rename aggregated columns
-    # PyArrow names them like trip_distance_count etc.
     renamed = grouped.rename_columns(
         {
             "trip_distance_count": "trip_count",
@@ -233,7 +229,6 @@ def _gold_aggregate(clean: pa.Table) -> pa.Table:
             "fare_amount_sum": "sum_fare",
         }
     )
-    # Ensure types
     return renamed.select(
         [
             "city",
@@ -248,7 +243,11 @@ def _gold_aggregate(clean: pa.Table) -> pa.Table:
     )
 
 
-def _ensure_namespace(catalog, namespace: str) -> None:
+# Backward-compatible alias for the previous gold terminology.
+_gold_aggregate = build_hourly_zone_demand
+
+
+def _ensure_namespace(catalog: Any, namespace: str) -> None:
     try:
         catalog.create_namespace(namespace)
     except Exception:
@@ -256,63 +255,56 @@ def _ensure_namespace(catalog, namespace: str) -> None:
 
 
 def _write_iceberg_table(
-    catalog,
-    identifier: str,
-    data: pa.Table,
-    *,
-    period: str,
-    legacy_periods: set[str],
+    catalog: Any, identifier: str, data: pa.Table, *, period: str, legacy_periods: set[str]
 ) -> Any:
-    """Replace one source period while retaining every other period."""
+    """Replace one source period while retaining all other published periods."""
     try:
         table = catalog.load_table(identifier)
     except NoSuchTableError:
-        ns = identifier.split(".")[0]
-        _ensure_namespace(catalog, ns)
+        namespace = identifier.split(".")[0]
+        _ensure_namespace(catalog, namespace)
         table = catalog.create_table(identifier, schema=data.schema)
-        if data.num_rows > 0:
+        if data.num_rows:
             table.append(data)
     else:
         table = _add_legacy_period_column(catalog, table, identifier, legacy_periods)
-        matching_rows = table.scan(
+        matching = table.scan(
             row_filter=EqualTo("source_period", period), selected_fields=["source_period"]
         ).to_arrow()
-        if matching_rows.num_rows > 0:
+        if matching.num_rows:
             table.overwrite(
                 data,
                 overwrite_filter=EqualTo("source_period", period),
                 snapshot_properties={"urbanflow.source_period": period},
             )
-        elif data.num_rows > 0:
+        elif data.num_rows:
             table.append(data)
     return catalog.load_table(identifier)
 
 
-def _add_legacy_period_column(catalog, table, identifier: str, legacy_periods: set[str]):
-    """Backfill the period field in tables created before period-scoped writes."""
-    field_names = table.schema().column_names
-    if "source_period" in field_names:
+def _add_legacy_period_column(
+    catalog: Any, table: Any, identifier: str, legacy_periods: set[str]
+) -> Any:
+    """Backfill period labels once for tables made before scoped publication."""
+    if "source_period" in table.schema().column_names:
         return table
-
     existing = table.scan().to_arrow()
     time_column = "hour" if "hour" in existing.column_names else "tpep_pickup_datetime"
     if time_column not in existing.column_names:
         raise ValueError(f"cannot infer source_period for legacy table {identifier}")
-
-    fallback_period = next(iter(legacy_periods)) if len(legacy_periods) == 1 else None
+    fallback = next(iter(legacy_periods)) if len(legacy_periods) == 1 else None
     values = []
     for value in existing[time_column].to_pylist():
         if value is None:
-            if fallback_period is None:
+            if fallback is None:
                 raise ValueError(
                     f"cannot safely backfill null timestamps in {identifier}; "
                     "legacy source periods are ambiguous"
                 )
-            values.append(fallback_period)
+            values.append(fallback)
         else:
             values.append(f"{value.year:04d}-{value.month:02d}")
     backfilled = existing.append_column("source_period", pa.array(values, type=pa.string()))
-
     table.update_schema().add_column("source_period", StringType()).commit()
     table = catalog.load_table(identifier)
     table.overwrite(
@@ -323,19 +315,24 @@ def _add_legacy_period_column(catalog, table, identifier: str, legacy_periods: s
     return catalog.load_table(identifier)
 
 
-def _existing_source_periods(catalog, identifier: str) -> set[str]:
-    """Read existing period labels to support safe one-time schema backfill."""
+def _existing_source_periods(catalog: Any, identifier: str) -> set[str]:
+    """Read period labels for safe one-time schema backfill."""
     try:
         table = catalog.load_table(identifier)
     except NoSuchTableError:
         return set()
     if "source_period" not in table.schema().column_names:
         return set()
-    periods = table.scan(selected_fields=["source_period"]).to_arrow()["source_period"].to_pylist()
-    return {period for period in periods if period is not None}
+    return {
+        value
+        for value in table.scan(selected_fields=["source_period"])
+        .to_arrow()["source_period"]
+        .to_pylist()
+        if value is not None
+    }
 
 
-def _needs_legacy_period_backfill(catalog, identifiers: tuple[str, ...]) -> bool:
+def _needs_legacy_period_backfill(catalog: Any, identifiers: tuple[str, ...]) -> bool:
     """Return whether any published table predates period-scoped writes."""
     for identifier in identifiers:
         try:
@@ -353,7 +350,7 @@ def publish_yellow_slice(
     *,
     source_sha256: str | None = None,
     use_s3: bool = False,
-    catalog=None,
+    catalog: Any | None = None,
 ) -> SliceResult:
     """Publish one Yellow Taxi slice from ``source_path``.
 
@@ -364,11 +361,11 @@ def publish_yellow_slice(
         source_sha256: SHA-256 of the release; derived if not supplied.
         use_s3: If true, use the S3 warehouse (``s3://warehouse``);
             otherwise the file warehouse.
-        catalog: Optional pre-loaded catalog; defaults to the spike
-            file or S3 catalog.
+        catalog: Optional pre-loaded catalog; defaults to the file or
+            S3 catalog.
 
     Returns:
-        A ``SliceResult`` with row counts, snapshot IDs, and lineage
+        A :class:`SliceResult` with row counts, snapshot IDs, and lineage
         for the published Bronze/Silver/Gold tables.
     """
     import hashlib
@@ -384,11 +381,10 @@ def publish_yellow_slice(
         raise ValueError("period must use YYYY-MM format")
 
     if catalog is None:
-        catalog = load_spike_s3_catalog() if use_s3 else load_spike_catalog()
+        catalog = load_s3_catalog() if use_s3 else load_catalog()
 
-    # Load source with PyArrow — bounded slice is fine.
     source_table = pq.read_table(source_path)
-    input_rows = source_table.num_rows
+    input_rows: int = source_table.num_rows
 
     if source_sha256 is None:
         h = hashlib.sha256()
@@ -397,95 +393,97 @@ def publish_yellow_slice(
                 h.update(chunk)
         source_sha256 = h.hexdigest()
 
-    # Add provenance columns for Bronze.
+    # Add provenance columns for the landing dataset.
     now = datetime.now(UTC)
-    bronze_table = source_table.append_column(
+    landing_table = source_table.append_column(
         "ingested_at_utc", pa.array([now] * input_rows, type=pa.timestamp("us", tz="UTC"))
     )
-    bronze_table = bronze_table.append_column(
+    landing_table = landing_table.append_column(
         "source_period", pa.array([period] * input_rows, type=pa.string())
     )
-    bronze_table = bronze_table.append_column(
+    landing_table = landing_table.append_column(
         "source_sha256", pa.array([source_sha256] * input_rows, type=pa.string())
     )
 
-    # Quarantine split
-    accepted, quarantined = _quarantine_table(source_table)
-    accepted_rows = accepted.num_rows
-    quarantined_rows = quarantined.num_rows
-    # Invariant: accepted + quarantined == input
-    assert accepted_rows + quarantined_rows == input_rows
-    quarantined = quarantined.append_column(
-        "source_period", pa.array([period] * quarantined_rows, type=pa.string())
+    # Validated / rejected split.
+    validated, rejected = split_validated_and_rejected(source_table)
+    validated_rows: int = validated.num_rows
+    rejected_rows: int = rejected.num_rows
+    assert validated_rows + rejected_rows == input_rows
+    rejected = rejected.append_column(
+        "source_period", pa.array([period] * rejected_rows, type=pa.string())
     )
 
-    # For Silver, add same provenance to accepted rows if any.
-    if accepted_rows > 0:
-        silver_table = accepted.append_column(
-            "ingested_at_utc", pa.array([now] * accepted_rows, type=pa.timestamp("us", tz="UTC"))
+    if validated_rows > 0:
+        validated_table = validated.append_column(
+            "ingested_at_utc",
+            pa.array([now] * validated_rows, type=pa.timestamp("us", tz="UTC")),
         )
-        silver_table = silver_table.append_column(
-            "source_period", pa.array([period] * accepted_rows, type=pa.string())
+        validated_table = validated_table.append_column(
+            "source_period", pa.array([period] * validated_rows, type=pa.string())
         )
     else:
-        silver_table = accepted.append_column(
+        validated_table = validated.append_column(
             "ingested_at_utc", pa.array([], type=pa.timestamp("us", tz="UTC"))
         ).append_column("source_period", pa.array([], type=pa.string()))
 
-    gold_table = _gold_aggregate(silver_table if accepted_rows > 0 else silver_table)
+    demand_table = build_hourly_zone_demand(validated_table)
 
-    # Publish to Iceberg, replacing only this source period.
-    bronze_id = "bronze.raw_yellow_trips"
-    silver_id = "silver.clean_trips"
-    quarantine_id = "silver.quarantine_yellow_trips"
-    gold_id = "gold.zone_hour_demand"
+    # Typed Iceberg identifiers (proper business wording).
+    landing_id = str(LANDING_RAW_YELLOW_TRIPS)
+    validated_id = str(CURATED_VALIDATED_YELLOW_TRIPS)
+    rejected_id = str(CURATED_REJECTED_YELLOW_TRIPS)
+    demand_id = str(SERVING_HOURLY_ZONE_DEMAND)
 
-    table_ids = (bronze_id, silver_id, quarantine_id, gold_id)
+    table_ids = (landing_id, validated_id, rejected_id, demand_id)
     legacy_periods = (
-        _existing_source_periods(catalog, bronze_id)
+        _existing_source_periods(catalog, landing_id)
         if _needs_legacy_period_backfill(catalog, table_ids)
         else set()
     )
-    bronze_handle = _write_iceberg_table(
-        catalog, bronze_id, bronze_table, period=period, legacy_periods=legacy_periods
+    landing_handle = _write_iceberg_table(
+        catalog, landing_id, landing_table, period=period, legacy_periods=legacy_periods
     )
-    silver_handle = _write_iceberg_table(
-        catalog, silver_id, silver_table, period=period, legacy_periods=legacy_periods
+    validated_handle = _write_iceberg_table(
+        catalog, validated_id, validated_table, period=period, legacy_periods=legacy_periods
     )
     _write_iceberg_table(
-        catalog, quarantine_id, quarantined, period=period, legacy_periods=legacy_periods
+        catalog, rejected_id, rejected, period=period, legacy_periods=legacy_periods
     )
-    gold_handle = _write_iceberg_table(
-        catalog, gold_id, gold_table, period=period, legacy_periods=legacy_periods
+    demand_handle = _write_iceberg_table(
+        catalog, demand_id, demand_table, period=period, legacy_periods=legacy_periods
     )
 
-    # Snapshot IDs for pinned experiments
-    def _snap_id(handle) -> int | None:
+    def _snap_id(handle: Any) -> int | None:
         try:
             snap = handle.current_snapshot()
             return snap.snapshot_id if snap is not None else None
         except Exception:
             return None
 
-    # Manifest for first analytical slice
-    manifest = {
+    manifest: dict[str, Any] = {
         "period": period,
         "source_sha256": source_sha256,
         "source_path": str(source_path),
         "input_rows": input_rows,
-        "accepted_rows": accepted_rows,
-        "quarantined_rows": quarantined_rows,
-        "gold_rows": gold_table.num_rows,
-        "bronze_snapshot_id": _snap_id(bronze_handle),
-        "silver_snapshot_id": _snap_id(silver_handle),
-        "gold_snapshot_id": _snap_id(gold_handle),
-        "gold_schema": gold_table.schema.names,
+        "validated_rows": validated_rows,
+        "rejected_rows": rejected_rows,
+        "demand_rows": demand_table.num_rows,
+        "landing_snapshot_id": _snap_id(landing_handle),
+        "validated_snapshot_id": _snap_id(validated_handle),
+        "demand_snapshot_id": _snap_id(demand_handle),
+        "demand_schema": demand_table.schema.names,
         "published_at_utc": now.isoformat().replace("+00:00", "Z"),
+        # Backward-compatible keys for readers still expecting medallion names.
+        "accepted_rows": validated_rows,
+        "quarantined_rows": rejected_rows,
+        "gold_rows": demand_table.num_rows,
+        "bronze_snapshot_id": _snap_id(landing_handle),
+        "silver_snapshot_id": _snap_id(validated_handle),
+        "gold_snapshot_id": _snap_id(demand_handle),
+        "gold_schema": demand_table.schema.names,
     }
-    # Write manifest under .local for inspection (not committed)
-    from pathlib import Path as _P
-
-    out_dir = _P(".local") / "lakehouse" / f"period={period}"
+    out_dir = Path(".local") / "lakehouse" / f"period={period}"
     out_dir.mkdir(parents=True, exist_ok=True)
     manifest_path = out_dir / "slice_manifest.json"
     manifest_path.write_text(json.dumps(manifest, indent=2))
@@ -494,17 +492,17 @@ def publish_yellow_slice(
         period=period,
         source_sha256=source_sha256,
         source_row_count=input_rows,
-        bronze_table=bronze_id,
-        silver_table=silver_id,
-        quarantine_table=quarantine_id,
-        gold_table=gold_id,
+        landing_table=landing_id,
+        validated_table=validated_id,
+        rejected_table=rejected_id,
+        demand_table=demand_id,
         input_rows=input_rows,
-        accepted_rows=accepted_rows,
-        quarantined_rows=quarantined_rows,
-        gold_rows=gold_table.num_rows,
-        bronze_snapshot_id=manifest["bronze_snapshot_id"],
-        silver_snapshot_id=manifest["silver_snapshot_id"],
-        gold_snapshot_id=manifest["gold_snapshot_id"],
-        gold_schema=gold_table.schema.names,
+        validated_rows=validated_rows,
+        rejected_rows=rejected_rows,
+        demand_rows=demand_table.num_rows,
+        landing_snapshot_id=manifest["landing_snapshot_id"],
+        validated_snapshot_id=manifest["validated_snapshot_id"],
+        demand_snapshot_id=manifest["demand_snapshot_id"],
+        demand_schema=demand_table.schema.names,
         manifest_path=str(manifest_path),
     )

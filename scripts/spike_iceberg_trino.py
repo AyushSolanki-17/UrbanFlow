@@ -14,8 +14,35 @@ count. It is the executable companion to
 
 import sys
 
+import pyarrow as pa
+
 from urbanflow.lakehouse.catalog import default_warehouse_path, load_spike_catalog
-from urbanflow.lakehouse.writer import write_tiny_table
+
+
+def write_tiny_table(identifier: str = "spike.pg_tiny", *, catalog=None):
+    """Create and populate a tiny Iceberg table (spike helper)."""
+    if catalog is None:
+        catalog = load_spike_catalog()
+    namespace, _, _ = identifier.partition(".")
+    try:
+        catalog.create_namespace(namespace)
+    except Exception:
+        pass
+    schema = pa.schema([("pickup_zone", pa.int32()), ("fare_amount", pa.float64())])
+    data = pa.table(
+        {
+            "pickup_zone": pa.array([10, 20], type=pa.int32()),
+            "fare_amount": pa.array([5.0, 6.0], type=pa.float64()),
+        },
+        schema=schema,
+    )
+    try:
+        catalog.drop_table(identifier)
+    except Exception:
+        pass
+    table = catalog.create_table(identifier, schema=data.schema)
+    table.append(data)
+    return table, data
 
 
 def main() -> int:

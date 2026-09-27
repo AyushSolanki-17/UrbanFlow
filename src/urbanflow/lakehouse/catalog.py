@@ -1,19 +1,18 @@
-"""Shared Iceberg catalog helpers for the foundation spike.
+"""Shared Iceberg catalog helpers for the lakehouse.
 
-This module provides the minimal catalog/warehouse configuration that
-is shared between the PyIceberg writer and Trino. The spike proves
-that one writer and one query engine can coordinate through the same
-JDBC-backed catalog and warehouse directory. See docs/spikes.
+This module provides the minimal catalog/warehouse configuration shared
+between the PyIceberg writer and Trino. Both coordinate through the
+same JDBC-backed catalog and warehouse directory.
 """
 
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from pyiceberg.catalog import load_catalog
+from pyiceberg.catalog import load_catalog as _load_catalog
 
 
 def default_warehouse_path(project_root: Path | None = None) -> Path:
-    """Return the local file warehouse used by the spike.
+    """Return the local file warehouse path.
 
     The warehouse lives under ignored ``.local`` storage so it does not
     become a repository fixture. Trino mounts the same absolute host
@@ -26,12 +25,12 @@ def default_warehouse_path(project_root: Path | None = None) -> Path:
     return (project_root / ".local" / "spike-iceberg" / "warehouse").resolve()
 
 
-def load_spike_catalog(
+def load_catalog(
     warehouse: Path | str | None = None,
     uri: str | None = None,
     catalog_name: str = "spike_pg",
 ):
-    """Load the spike ``sql`` catalog backed by PostgreSQL.
+    """Load the ``sql`` Iceberg catalog backed by PostgreSQL.
 
     Args:
         warehouse: Local file warehouse directory. Defaults to the
@@ -86,7 +85,7 @@ def load_spike_catalog(
             except OSError:
                 pass
 
-    return load_catalog(
+    return _load_catalog(
         catalog_name,
         **{
             "type": "sql",
@@ -96,7 +95,12 @@ def load_spike_catalog(
     )
 
 
-def load_spike_s3_catalog(
+def load_spike_catalog(*args, **kwargs):
+    """Compatibility alias for :func:`load_catalog`."""
+    return load_catalog(*args, **kwargs)
+
+
+def load_s3_catalog(
     warehouse: str = "s3://warehouse",
     uri: str | None = None,
     catalog_name: str = "spike_pg",
@@ -105,7 +109,7 @@ def load_spike_s3_catalog(
     s3_secret_key: str = "test",
     s3_region: str = "us-east-1",
 ):
-    """Load the spike catalog with an S3 warehouse (MinIO / S3Mock).
+    """Load the catalog with an S3 warehouse (MinIO / S3Mock).
 
     Reuses the same PostgreSQL JDBC catalog as the file variant so
     tables can coexist. S3 FileIO properties are supplied so PyIceberg
@@ -151,7 +155,7 @@ def load_spike_s3_catalog(
             except OSError:
                 pass
 
-    return load_catalog(
+    return _load_catalog(
         catalog_name,
         **{
             "type": "sql",
@@ -164,3 +168,8 @@ def load_spike_s3_catalog(
             "s3.path-style-access": "true",
         },
     )
+
+
+def load_spike_s3_catalog(*args, **kwargs):
+    """Compatibility alias for :func:`load_s3_catalog`."""
+    return load_s3_catalog(*args, **kwargs)
