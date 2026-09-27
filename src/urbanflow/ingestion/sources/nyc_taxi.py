@@ -1,9 +1,11 @@
 """Download monthly NYC TLC Yellow Taxi trip files."""
 
 import hashlib
+import html.parser
 import json
 import math
 import os
+import re
 import shutil
 import time
 import urllib.error
@@ -12,7 +14,8 @@ import uuid
 from collections.abc import Callable, Mapping
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Protocol, TypedDict
+from typing import NotRequired, Protocol, TypedDict
+from urllib.parse import urlsplit
 
 from urbanflow.database import MetadataRepository
 from urbanflow.database.models import IngestionRun
@@ -21,6 +24,8 @@ SOURCE_ID = "nyc_tlc.yellow_taxi"
 SOURCE_URL_TEMPLATE = (
     "https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_{period}.parquet"
 )
+TLC_DISCOVERY_URL = "https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page"
+_YELLOW_PERIOD_PATTERN = re.compile(r"yellow_tripdata_(\d{4}-\d{2})\.parquet$")
 _RETRYABLE_HTTP_CODES = {408, 429, 500, 502, 503, 504}
 _CHUNK_SIZE = 1024 * 1024
 
@@ -41,6 +46,7 @@ class DownloadResult(TypedDict):
     etag: str | None
     source_last_modified: str | None
     attempts: int
+    discovered_from: NotRequired[str]
 
 
 class DownloadResponse(Protocol):
@@ -56,6 +62,71 @@ class DownloadResponse(Protocol):
 
     def __exit__(self, exc_type: object, exc: object, traceback: object) -> None:
         """Close the response context."""
+
+
+class _TLCReleaseLinkParser(html.parser.HTMLParser):
+    """Collect monthly Yellow Taxi Parquet release links from TLC's index."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.links: list[tuple[str, str]] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag != "a":
+            return
+        href = dict(attrs).get("href")
+        if not href:
+            return
+        match = _YELLOW_PERIOD_PATTERN.search(Path(urlsplit(href).path).name)
+        if match:
+            self.links.append((match.group(1), href))
+
+
+def discover_latest_yellow_taxi(
+    *,
+    timeout_seconds: float = 30,
+    urlopen: Callable[[urllib.request.Request, float], DownloadResponse] = urllib.request.urlopen,
+) -> str:
+    """Discover the newest Yellow Taxi month linked from TLC's official index.
+
+    Args:
+        timeout_seconds: Maximum time to wait for the TLC index response.
+        urlopen: HTTP opener, exposed for deterministic tests.
+
+    Returns:
+        The newest published monthly period in ``YYYY-MM`` format.
+
+    Raises:
+        RuntimeError: If the index cannot be read or contains no matching links.
+        ValueError: If the timeout is not finite and positive.
+    """
+    if not math.isfinite(timeout_seconds) or timeout_seconds <= 0:
+        raise ValueError("timeout_seconds must be a finite positive number")
+    request = urllib.request.Request(
+        TLC_DISCOVERY_URL,
+        headers={"User-Agent": "UrbanFlow/0.1 (NYC TLC source discovery)"},
+    )
+    try:
+        with urlopen(request, timeout=timeout_seconds) as response:
+            page = response.read().decode("utf-8", errors="replace")
+    except (OSError, TimeoutError, urllib.error.URLError) as error:
+        raise RuntimeError(f"could not read the TLC Yellow Taxi release index: {error}") from error
+
+    parser = _TLCReleaseLinkParser()
+    parser.feed(page)
+    periods = {period for period, _url in parser.links if _valid_discovered_period(period)}
+    if not periods:
+        raise RuntimeError("TLC release index contains no monthly Yellow Taxi Parquet links")
+    return max(periods, key=lambda period: tuple(int(part) for part in period.split("-")))
+
+
+def _valid_discovered_period(period: str) -> bool:
+    """Return whether a discovered URL contains a valid calendar month."""
+    try:
+        validate_period(period)
+    except ValueError:
+        return False
+    return True
 
 
 def validate_period(period: str) -> str:

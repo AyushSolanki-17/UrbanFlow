@@ -9,7 +9,11 @@ import psycopg
 
 from urbanflow.config import load_settings
 from urbanflow.database import get_metadata_repository
-from urbanflow.ingestion.sources.nyc_taxi import download_yellow_taxi
+from urbanflow.ingestion.sources.nyc_taxi import (
+    TLC_DISCOVERY_URL,
+    discover_latest_yellow_taxi,
+    download_yellow_taxi,
+)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -21,7 +25,11 @@ def main(argv: list[str] | None = None) -> int:
         "download-yellow-taxi", help="download one monthly NYC TLC Yellow Taxi Parquet file"
     )
     download.add_argument("--config", type=Path, required=True)
-    download.add_argument("--period", required=True, help="source month in YYYY-MM format")
+    download_period = download.add_mutually_exclusive_group(required=True)
+    download_period.add_argument("--period", help="source month in YYYY-MM format")
+    download_period.add_argument(
+        "--latest", action="store_true", help="discover the newest period listed by NYC TLC"
+    )
     download.add_argument(
         "--refresh", action="store_true", help="check the source for a correction"
     )
@@ -53,7 +61,30 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="limit the published slice to the first N source rows (keeps local runs small)",
     )
+    query = commands.add_parser(
+        "query-yellow-demand", help="show top hourly demand rows from Trino"
+    )
+    query.add_argument("--period", help="optionally filter by source month in YYYY-MM format")
+    query.add_argument("--host", default="localhost", help="Trino host (default: localhost)")
+    query.add_argument("--port", type=int, default=8080, help="Trino port (default: 8080)")
+    query.add_argument("--user", default="urbanflow", help="Trino user label")
+    query.add_argument("--limit", type=int, default=10, help="maximum rows to return (1–100)")
     args = parser.parse_args(argv)
+    if args.command == "query-yellow-demand":
+        try:
+            from urbanflow.lakehouse.query import query_hourly_zone_demand
+
+            rows = query_hourly_zone_demand(
+                args.period,
+                host=args.host,
+                port=args.port,
+                user=args.user,
+                limit=args.limit,
+            )
+            print(json.dumps({"period": args.period, "rows": rows}, default=str, indent=2))
+            return 0
+        except (OSError, RuntimeError, ValueError) as error:
+            parser.exit(1, f"urbanflow: query error: {error}\n")
     try:
         settings = load_settings(args.config)
     except (OSError, ValueError) as error:
@@ -151,8 +182,9 @@ def main(argv: list[str] | None = None) -> int:
             parser.exit(1, f"urbanflow: publish error: {error}\n")
     try:
         metadata = get_metadata_repository(settings.metadata_database_url)
+        period = discover_latest_yellow_taxi() if args.latest else args.period
         result = download_yellow_taxi(
-            args.period,
+            period,
             data_dir=settings.data_dir,
             metadata=metadata,
             refresh=args.refresh,
@@ -162,5 +194,7 @@ def main(argv: list[str] | None = None) -> int:
         )
     except (OSError, RuntimeError, ValueError, psycopg.Error) as error:
         parser.exit(1, f"urbanflow: download error: {error}\n")
+    if args.latest:
+        result["discovered_from"] = TLC_DISCOVERY_URL
     print(json.dumps(result, indent=2))
     return 0

@@ -1,6 +1,6 @@
 # Contributing to UrbanFlow
 
-The repository contains a Python foundation package and runnable quality tooling. Data pipelines and application services remain planned. Start with [project context](docs/context.md) and the [roadmap](docs/roadmap.md).
+The repository contains a Python foundation package, a working Yellow Taxi ingestion and Iceberg publication path, and runnable quality tooling. Broader processing and application services remain planned. Start with [project context](docs/context.md) and the [roadmap](docs/roadmap.md).
 
 ## Local setup
 
@@ -27,15 +27,19 @@ The foundation uses Python 3.13, selected by `.python-version`; uv provisions it
 
 For personal settings, copy `configs/local.example.toml` to the ignored `configs/local.toml` and pass that path to `--config`. Relative data paths resolve beside the configuration file. The example uses ignored `.local/data`, a PostgreSQL metadata URL, and decimal-GB budgets: 10 GB routine data, 20 GB peak data and 8 GB stack memory. Set credentials with `URBANFLOW_METADATA_DATABASE_URL` or a local PostgreSQL password file. `check-config` redacts the database URL. The loader rejects unknown/missing settings, invalid budgets and targets above the peak. Budgets remain environment configuration and may differ in an expanded deployment.
 
-`check-config` validates and prints settings, redacting the database URL; it creates no directories, downloads no data and starts no services. Admission control, free-space measurement and container memory enforcement are future implementation work. Keep database credentials in environment variables or a local PostgreSQL password file, not in the committed example profile.
+`check-config` validates and prints settings, redacting the database URL; it creates no directories, downloads no data and starts no services. The downloader checks the configured working-data peak and available free space when the source provides `Content-Length`. These checks do not enforce container memory budgets. Keep database credentials in environment variables or a local PostgreSQL password file, not in the committed example profile.
 
 To download one monthly NYC TLC Yellow Taxi source file, set `POSTGRES_DB`, `POSTGRES_USER` and `POSTGRES_PASSWORD` in the ignored `.env`, then start PostgreSQL with `docker compose up -d postgres`. Compose reads `.env` for the container; the Python client needs the same password through `PGPASSWORD`, `URBANFLOW_METADATA_DATABASE_URL`, or a local PostgreSQL password file. Use a personal profile:
 
 ```sh
 uv run --locked urbanflow download-yellow-taxi --config configs/local.toml --period 2024-01
+# Or discover the newest Yellow Taxi month linked by NYC TLC:
+uv run --locked urbanflow download-yellow-taxi --config configs/local.toml --latest
 ```
 
 The command writes the raw file under the configured data directory and acquisition metadata to PostgreSQL. A repeat run uses the recorded local release; add `--refresh` to fetch the source again and observe corrections. Download success does not validate trip rows or publish an analytical table. Use a small period only when there is enough local disk space for the source file and any retained releases.
+
+Start the local query stack and inspect a bounded sample of hourly demand with `uv run --locked urbanflow query-yellow-demand --limit 10`. Add `--period YYYY-MM` to filter tables that have period provenance.
 
 Current code lives in `src/urbanflow/config/`, `src/urbanflow/database/`, `src/urbanflow/ingestion/`, and the CLI; tests live in `tests/unit/`. Create lakehouse and service directories when their first implementation arrives. The wider HTML folder tree remains a proposal.
 

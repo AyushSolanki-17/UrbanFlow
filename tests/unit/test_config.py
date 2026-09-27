@@ -115,3 +115,38 @@ def test_cli_configuration_errors_are_actionable(tmp_path, capsys, content):
     output = capsys.readouterr()
     assert "configuration error" in output.err
     assert not output.out
+
+
+def test_cli_discovers_latest_period_before_download(tmp_path, monkeypatch, capsys):
+    import urbanflow.cli as cli
+
+    selected = {}
+    monkeypatch.setattr(cli, "discover_latest_yellow_taxi", lambda: "2026-05")
+    monkeypatch.setattr(cli, "get_metadata_repository", lambda _url: object())
+
+    def download(period, **_kwargs):
+        selected["period"] = period
+        return {"source_period": period, "status": "succeeded"}
+
+    monkeypatch.setattr(cli, "download_yellow_taxi", download)
+
+    assert main(["download-yellow-taxi", "--config", str(write_profile(tmp_path)), "--latest"]) == 0
+    output = json.loads(capsys.readouterr().out)
+    assert selected["period"] == "2026-05"
+    assert output["discovered_from"] == cli.TLC_DISCOVERY_URL
+
+
+def test_query_cli_returns_read_only_demo_rows(monkeypatch, capsys):
+    from urbanflow.lakehouse import query
+
+    monkeypatch.setattr(
+        query,
+        "query_hourly_zone_demand",
+        lambda period, **kwargs: [{"period": period, "limit": kwargs["limit"]}],
+    )
+
+    assert main(["query-yellow-demand", "--period", "2024-01", "--limit", "3"]) == 0
+    assert json.loads(capsys.readouterr().out) == {
+        "period": "2024-01",
+        "rows": [{"period": "2024-01", "limit": 3}],
+    }

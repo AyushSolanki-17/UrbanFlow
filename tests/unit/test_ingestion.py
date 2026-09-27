@@ -11,7 +11,12 @@ from uuid import UUID
 import pytest
 
 from urbanflow.database.models import IngestionRun, SourceRelease
-from urbanflow.ingestion.sources.nyc_taxi import SOURCE_URL_TEMPLATE, download_yellow_taxi
+from urbanflow.ingestion.sources.nyc_taxi import (
+    SOURCE_URL_TEMPLATE,
+    TLC_DISCOVERY_URL,
+    discover_latest_yellow_taxi,
+    download_yellow_taxi,
+)
 
 
 class FakeMetadataRepository:
@@ -96,6 +101,29 @@ class FakeResponse(io.BytesIO):
     def __init__(self, body: bytes, headers: dict[str, str] | None = None):
         super().__init__(body)
         self.headers = headers or {"Content-Length": str(len(body)), "ETag": '"fixture"'}
+
+
+def test_discovery_selects_newest_yellow_period_from_official_links():
+    calls: list[str] = []
+    page = b"""
+    <a href="https://example.test/yellow_tripdata_2024-12.parquet">Yellow</a>
+    <a href="https://example.test/yellow_tripdata_2025-03.parquet">Yellow</a>
+    <a href="https://example.test/green_tripdata_2026-01.parquet">Green</a>
+    <a href="https://example.test/yellow_tripdata_2026-13.parquet">Invalid month</a>
+    """
+
+    def open_page(request, timeout):
+        calls.append(request.full_url)
+        assert timeout == 5
+        return FakeResponse(page)
+
+    assert discover_latest_yellow_taxi(timeout_seconds=5, urlopen=open_page) == "2025-03"
+    assert calls == [TLC_DISCOVERY_URL]
+
+
+def test_discovery_fails_clearly_when_no_yellow_parquet_link_exists():
+    with pytest.raises(RuntimeError, match="contains no monthly"):
+        discover_latest_yellow_taxi(urlopen=lambda *_args, **_kwargs: FakeResponse(b"<html/>"))
 
 
 def fake_urlopen_for(body: bytes, calls: list[tuple[str, float]]):
